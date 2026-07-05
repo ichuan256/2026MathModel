@@ -1,0 +1,111 @@
+:root {
+  color-scheme: light;
+  background: #eef2f6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: radial-gradient(circle at 50% 42%, #fbfcfe 0%, #edf2f7 46%, #dbe4ed 100%);
+}
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.sidebar {
+  background: rgba(255, 255, 255, 0.92);
+  border-right: 1px solid rgba(120, 135, 150, 0.32);
+  padding: 18px;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  color: #24313d;
+}
+
+.sidebar h1 {
+  margin: 0 0 18px;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.sidebar label {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.sidebar input {
+  width: 100%;
+  border: 1px solid #ccd6df;
+  border-radius: 6px;
+  padding: 8px 9px;
+  font: inherit;
+  background: #fbfcfd;
+}
+
+.image-picker {
+  border-top: 1px solid rgba(120, 135, 150, 0.26);
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.path-display {
+  color: #53606c;
+  margin-bottom: 12px;
+}
+
+.image-preview {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 1px dashed #b8c5d0;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #f6f8fa;
+  color: #7a8793;
+  font: 13px "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+.image-preview img {
+  display: none;
+  flex: none;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  background: #ffffff;
+}
+
+.image-preview.has-image img {
+  display: block;
+}
+
+.image-preview.has-image span {
+  display: none;
+}
+
+#scene {
+  width: 100%;
+  height: 100vh;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+#scene:active {
+  cursor: grabbing;
+}

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A4 3D View</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <aside class="sidebar">
+        <h1>&#21322;&#22278;&#26609;&#38754;</h1>
+        <label>
+          &#24213;&#38754;&#22278;&#24515; x
+          <input id="centerX" type="number" value="105" step="1" />
+        </label>
+        <label>
+          &#24213;&#38754;&#22278;&#24515; y
+          <input id="centerY" type="number" value="120" step="1" />
+        </label>
+        <label>
+          &#21322;&#22278;&#26609;&#39640;&#24230;
+          <input id="cylinderHeight" type="number" value="90" step="1" min="0" />
+        </label>
+        <label>
+          &#21322;&#22278;&#26609;&#21322;&#24452;
+          <input id="cylinderRadius" type="number" value="35" step="1" min="0" />
+        </label>
+        <label>
+          &#22270;&#29255;&#24213;&#36793; z
+          <input id="imageBottomZ" type="number" value="0" step="1" />
+        </label>
+        <label>
+          &#22270;&#29255;&#39640;&#24230;
+          <input id="imageHeight" type="number" value="90" step="1" min="1" />
+        </label>
+        <label>
+          &#20809;&#32447;&#19979;&#20542;&#35282; theta
+          <input id="lightTheta" type="number" value="20" step="1" min="-85" max="85" />
+        </label>
+        <section class="image-picker">
+          <label>
+            &#21407;&#22270;&#29255;&#25991;&#20214;
+            <input id="imageFile" type="file" accept="image/*" />
+          </label>
+          <input id="imagePath" class="path-display" type="text" value="&#26410;&#36873;&#25321;&#22270;&#29255;" readonly />
+          <div class="image-preview">
+            <img id="imagePreview" alt="&#21407;&#22270;&#29255;&#39044;&#35272;" />
+            <span id="imageEmpty">&#21407;&#22270;&#29255;&#39044;&#35272;</span>
+          </div>
+        </section>
+      </aside>
+      <canvas id="scene" aria-label="A4 3D scene"></canvas>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
