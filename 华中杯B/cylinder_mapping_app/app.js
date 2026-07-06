@@ -1,5 +1,9 @@
+const THREE = window.THREE;
+if (!THREE) {
+  throw new Error("Three.js failed to load. Check network access to the CDN.");
+}
+
 const canvas = document.getElementById("scene");
-const ctx = canvas.getContext("2d");
 const controls = {
   centerX: document.getElementById("centerX"),
   centerY: document.getElementById("centerY"),
@@ -11,529 +15,591 @@ const controls = {
   imageFile: document.getElementById("imageFile"),
   imagePath: document.getElementById("imagePath"),
   imagePreview: document.getElementById("imagePreview"),
-  imageEmpty: document.getElementById("imageEmpty"),
 };
 
 const A4_WIDTH = 210;
 const A4_HEIGHT = 297;
-const VIEW_CENTER = [A4_WIDTH / 2, A4_HEIGHT / 2, 0];
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xeaf0f6);
 
-const state = {
-  rotation: multiplyMatrix(rotationX(-0.9), rotationZ(0.12)),
-  distance: 620,
-  panX: 0,
-  panY: 0,
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
+const orbit = {
+  target: new THREE.Vector3(0, 0, 45),
+  radius: 620,
+  theta: -0.82,
+  phi: 0.92,
   drag: null,
-  pointerMode: "rotate",
-  imageUrl: null,
+  mode: "rotate",
 };
 
-function rotationX(angle) {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  return [
-    [1, 0, 0],
-    [0, c, -s],
-    [0, s, c],
-  ];
-}
+const root = new THREE.Group();
+scene.add(root);
 
-function rotationY(angle) {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  return [
-    [c, 0, s],
-    [0, 1, 0],
-    [-s, 0, c],
-  ];
-}
+const state = {
+  imageUrl: null,
+  imageTexture: null,
+  sourceCanvas: document.createElement("canvas"),
+  sourceCtx: null,
+  mappedTexture: null,
+  paperMapTexture: null,
+};
 
-function rotationZ(angle) {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  return [
-    [c, -s, 0],
-    [s, c, 0],
-    [0, 0, 1],
-  ];
-}
+state.sourceCtx = state.sourceCanvas.getContext("2d", { willReadFrequently: true });
 
-function multiplyMatrix(a, b) {
-  const result = [
-    [0, 0, 0],
-    [0, 0, 0],
-    [0, 0, 0],
-  ];
-  for (let row = 0; row < 3; row += 1) {
-    for (let col = 0; col < 3; col += 1) {
-      result[row][col] =
-        a[row][0] * b[0][col] +
-        a[row][1] * b[1][col] +
-        a[row][2] * b[2][col];
-    }
+function setTextureColor(texture) {
+  if ("colorSpace" in texture && THREE.SRGBColorSpace) {
+    texture.colorSpace = THREE.SRGBColorSpace;
+  } else if (THREE.sRGBEncoding) {
+    texture.encoding = THREE.sRGBEncoding;
   }
-  return result;
 }
 
-function transformPoint(point) {
-  const x = point[0] - VIEW_CENTER[0];
-  const y = point[1] - VIEW_CENTER[1];
-  const z = point[2] - VIEW_CENTER[2];
-  const r = state.rotation;
-  return [
-    r[0][0] * x + r[0][1] * y + r[0][2] * z,
-    r[1][0] * x + r[1][1] * y + r[1][2] * z,
-    r[2][0] * x + r[2][1] * y + r[2][2] * z,
-  ];
-}
+const materials = {
+  paper: new THREE.MeshBasicMaterial({ color: 0xfafcff, side: THREE.DoubleSide }),
+  paperEdge: new THREE.LineBasicMaterial({ color: 0x5f6d7a, transparent: true, opacity: 0.62 }),
+  grid: new THREE.LineBasicMaterial({ color: 0xbac5cf, transparent: true, opacity: 0.22 }),
+  xAxis: new THREE.LineBasicMaterial({ color: 0xd64536 }),
+  yAxis: new THREE.LineBasicMaterial({ color: 0x268452 }),
+  zAxis: new THREE.LineBasicMaterial({ color: 0x2a5bd7 }),
+  baseCircle: new THREE.LineBasicMaterial({ color: 0x11628c }),
+  cylinder: new THREE.MeshBasicMaterial({
+    color: 0x8fc3dc,
+    transparent: true,
+    opacity: 0.24,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  }),
+  imagePlaneFrame: new THREE.LineBasicMaterial({ color: 0x22303e }),
+  guide: new THREE.LineBasicMaterial({ color: 0x6f7f8c, transparent: true, opacity: 0.55 }),
+  measure: new THREE.LineBasicMaterial({ color: 0x7b3f00 }),
+};
 
-function project(point) {
-  const [x, y, z] = transformPoint(point);
-  const d = Math.max(80, state.distance - z);
-  const focal = Math.min(canvas.clientWidth, canvas.clientHeight) * 0.86;
-  const scale = focal / d;
-  return {
-    x: canvas.clientWidth / 2 + state.panX + x * scale,
-    y: canvas.clientHeight / 2 + state.panY - y * scale,
-    z,
-  };
-}
-
-function resizeCanvas() {
-  const dpr = window.devicePixelRatio || 1;
-  const width = Math.max(1, Math.floor(canvas.clientWidth * dpr));
-  const height = Math.max(1, Math.floor(canvas.clientHeight * dpr));
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-}
-
-function polygonPath(points) {
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i += 1) {
-    ctx.lineTo(points[i].x, points[i].y);
-  }
-  ctx.closePath();
-}
-
-function drawPaper() {
-  const world = [
-    [0, 0, 0],
-    [A4_WIDTH, 0, 0],
-    [A4_WIDTH, A4_HEIGHT, 0],
-    [0, A4_HEIGHT, 0],
-  ];
-  const paper = world.map(project);
-  const normal = transformPoint([0, 0, 1]);
-  const front = normal[2] >= 0;
-
-  ctx.save();
-  polygonPath(paper);
-  const gradient = ctx.createLinearGradient(paper[0].x, paper[0].y, paper[2].x, paper[2].y);
-  if (front) {
-    gradient.addColorStop(0, "#ffffff");
-    gradient.addColorStop(0.55, "#f7f9fb");
-    gradient.addColorStop(1, "#e9eef4");
-  } else {
-    gradient.addColorStop(0, "#e5ebf2");
-    gradient.addColorStop(1, "#f7f9fb");
-  }
-  ctx.fillStyle = gradient;
-  ctx.fill();
-
-  ctx.strokeStyle = front ? "rgba(38, 52, 66, 0.45)" : "rgba(38, 52, 66, 0.3)";
-  ctx.lineWidth = 1.6;
-  ctx.stroke();
-
-  drawPaperGrain(paper, front);
-  drawPaperAxes(front);
-  ctx.restore();
-}
-
-function drawSegment(a, b, color, width = 1) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.beginPath();
-  ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
-  ctx.stroke();
+function numberValue(input, fallback = 0) {
+  const value = Number.parseFloat(input.value);
+  return Number.isFinite(value) ? value : fallback;
 }
 
 function getCylinderParams() {
   return {
-    centerX: Number.parseFloat(controls.centerX.value) || 0,
-    centerY: Number.parseFloat(controls.centerY.value) || 0,
-    height: Math.max(0, Number.parseFloat(controls.cylinderHeight.value) || 0),
-    radius: Math.max(0, Number.parseFloat(controls.cylinderRadius.value) || 0),
+    centerX: numberValue(controls.centerX),
+    centerY: numberValue(controls.centerY),
+    height: Math.max(0, numberValue(controls.cylinderHeight)),
+    radius: Math.max(0, numberValue(controls.cylinderRadius)),
   };
+}
+
+function paperPoint(x, y, z = 0) {
+  const params = getCylinderParams();
+  return new THREE.Vector3(x - params.centerX, y - params.centerY, z);
 }
 
 function getImageBottomZ() {
-  return Number.parseFloat(controls.imageBottomZ.value) || 0;
+  return numberValue(controls.imageBottomZ);
 }
 
 function getImageHeight() {
-  return Math.max(1, Number.parseFloat(controls.imageHeight.value) || 90);
+  return Math.max(1, numberValue(controls.imageHeight, 90));
 }
 
 function getLightThetaRadians() {
-  const degrees = Number.parseFloat(controls.lightTheta.value) || 0;
-  const clamped = Math.max(-85, Math.min(85, degrees));
-  return (clamped * Math.PI) / 180;
+  return (Math.max(-85, Math.min(85, numberValue(controls.lightTheta))) * Math.PI) / 180;
 }
 
-function drawArrow(startWorld, endWorld, color, label) {
-  const start = project(startWorld);
-  const end = project(endWorld);
-  drawSegment(start, end, color, 2.4);
+function clearRoot() {
+  while (root.children.length > 0) {
+    const child = root.children.pop();
+    child.traverse((node) => {
+      if (node.geometry) node.geometry.dispose();
+      if (node.material && !Object.values(materials).includes(node.material)) {
+        if (Array.isArray(node.material)) node.material.forEach((material) => material.dispose());
+        else node.material.dispose();
+      }
+    });
+  }
+}
 
-  const angle = Math.atan2(end.y - start.y, end.x - start.x);
-  const head = 10;
+function makeLine(points, material, closed = false) {
+  const finalPoints = closed ? [...points, points[0]] : points;
+  const geometry = new THREE.BufferGeometry().setFromPoints(finalPoints);
+  return new THREE.Line(geometry, material);
+}
+
+function makeLabel(text, position, color = "#263442") {
+  const labelCanvas = document.createElement("canvas");
+  labelCanvas.width = 96;
+  labelCanvas.height = 40;
+  const ctx = labelCanvas.getContext("2d");
+  ctx.font = "20px Segoe UI, sans-serif";
   ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(end.x, end.y);
-  ctx.lineTo(end.x - head * Math.cos(angle - 0.45), end.y - head * Math.sin(angle - 0.45));
-  ctx.lineTo(end.x - head * Math.cos(angle + 0.45), end.y - head * Math.sin(angle + 0.45));
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.font = "13px Segoe UI, sans-serif";
-  ctx.fillText(label, end.x + 8, end.y - 8);
+  ctx.fillText(text, 4, 25);
+  const texture = new THREE.CanvasTexture(labelCanvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.position.copy(position);
+  sprite.scale.set(34, 14, 1);
+  return sprite;
 }
 
-function drawPaperAxes(front) {
-  ctx.save();
-  const alpha = front ? 0.9 : 0.55;
-  const { height } = getCylinderParams();
-  const imageTop = getImageBottomZ() + getImageHeight();
-  const sceneHeight = Math.max(height, imageTop);
-  const zAxisHeight = Math.max(30, sceneHeight + Math.max(12, sceneHeight * 0.08));
-  drawArrow([0, 0, 0.4], [A4_WIDTH * 0.92, 0, 0.4], `rgba(214, 69, 54, ${alpha})`, "x");
-  drawArrow([0, 0, 0.4], [0, A4_HEIGHT * 0.92, 0.4], `rgba(38, 132, 82, ${alpha})`, "y");
-  drawArrow([0, 0, 0.4], [0, 0, zAxisHeight], `rgba(42, 91, 215, ${alpha})`, "z");
+function makePlaneLabel(text, position, color = "#263442", width = 24, height = 10) {
+  const labelCanvas = document.createElement("canvas");
+  labelCanvas.width = 128;
+  labelCanvas.height = 64;
+  const ctx = labelCanvas.getContext("2d");
+  ctx.clearRect(0, 0, labelCanvas.width, labelCanvas.height);
+  ctx.font = "36px Segoe UI, sans-serif";
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, labelCanvas.width / 2, labelCanvas.height / 2);
 
-  const origin = project([0, 0, 0.6]);
-  ctx.fillStyle = `rgba(32, 42, 52, ${alpha})`;
-  ctx.font = "12px Segoe UI, sans-serif";
-  ctx.fillText("O(0,0)", origin.x + 8, origin.y + 16);
-  ctx.restore();
+  const texture = new THREE.CanvasTexture(labelCanvas);
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
+  mesh.position.copy(position);
+  return mesh;
 }
 
-function semiCylinderPoint(params, angle, z) {
-  return [
-    params.centerX + params.radius * Math.cos(angle),
-    params.centerY + params.radius * Math.sin(angle),
-    z,
+function addPaper() {
+  const params = getCylinderParams();
+  const paper = new THREE.Mesh(
+    new THREE.PlaneGeometry(A4_WIDTH, A4_HEIGHT),
+    materials.paper,
+  );
+  paper.position.set(A4_WIDTH / 2 - params.centerX, A4_HEIGHT / 2 - params.centerY, 0);
+  root.add(paper);
+
+  const corners = [
+    paperPoint(0, 0, 0.2),
+    paperPoint(A4_WIDTH, 0, 0.2),
+    paperPoint(A4_WIDTH, A4_HEIGHT, 0.2),
+    paperPoint(0, A4_HEIGHT, 0.2),
   ];
-}
+  root.add(makeLine(corners, materials.paperEdge, true));
 
-function getImagePlaneMetrics(params, image) {
-  const imageHeight = getImageHeight();
-  const imageWidth = imageHeight * (image.naturalWidth / image.naturalHeight);
-  const bottomZ = getImageBottomZ();
-  const topZ = bottomZ + imageHeight;
-  const outsideGap = Math.max(24, params.radius * 0.6);
-  const y = Math.max(params.centerY + params.radius + outsideGap, A4_HEIGHT + outsideGap);
-  return {
-    imageHeight,
-    imageWidth,
-    bottomZ,
-    topZ,
-    y,
-    leftX: params.centerX - imageWidth / 2,
-    rightX: params.centerX + imageWidth / 2,
-  };
-}
-
-function drawPolyline(points, color, width = 1) {
-  if (points.length < 2) return;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i += 1) {
-    ctx.lineTo(points[i].x, points[i].y);
+  const gridPoints = [];
+  for (let x = 30; x < A4_WIDTH; x += 30) {
+    gridPoints.push(paperPoint(x, 0, 0.35), paperPoint(x, A4_HEIGHT, 0.35));
   }
-  ctx.stroke();
-}
-
-function drawClosedPolyline(points, color, width = 1) {
-  if (points.length < 2) return;
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.beginPath();
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i += 1) {
-    ctx.lineTo(points[i].x, points[i].y);
+  for (let y = 30; y < A4_HEIGHT; y += 30) {
+    gridPoints.push(paperPoint(0, y, 0.35), paperPoint(A4_WIDTH, y, 0.35));
   }
-  ctx.closePath();
-  ctx.stroke();
+  const gridGeometry = new THREE.BufferGeometry().setFromPoints(gridPoints);
+  root.add(new THREE.LineSegments(gridGeometry, materials.grid));
 }
 
-function drawCylinderBaseCircle() {
+function addAxes() {
+  const params = getCylinderParams();
+  const zHeight = Math.max(params.height, getImageBottomZ() + getImageHeight(), 30) * 1.08 + 12;
+  const xEnd = Math.max(A4_WIDTH - params.centerX, params.radius + 25, 30);
+  const yEnd = Math.max(A4_HEIGHT - params.centerY, params.radius + 25, 30);
+  root.add(makeLine([new THREE.Vector3(0, 0, 1), new THREE.Vector3(xEnd, 0, 1)], materials.xAxis));
+  root.add(makeLine([new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, yEnd, 1)], materials.yAxis));
+  root.add(makeLine([new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, zHeight)], materials.zAxis));
+  root.add(makeLabel("x", new THREE.Vector3(xEnd + 8, 0, 5), "#d64536"));
+  root.add(makeLabel("y", new THREE.Vector3(0, yEnd + 8, 5), "#268452"));
+  root.add(makeLabel("z", new THREE.Vector3(0, 0, zHeight + 8), "#2a5bd7"));
+  root.add(makeLabel("O", new THREE.Vector3(8, 7, 2), "#263442"));
+}
+
+function cylinderPoint(params, angle, z, radiusOffset = 0) {
+  const radius = params.radius + radiusOffset;
+  return new THREE.Vector3(
+    radius * Math.cos(angle),
+    radius * Math.sin(angle),
+    z,
+  );
+}
+
+function makeSemiCylinderGeometry(params, angleSegments = 72, zSegments = 24, radiusOffset = 0) {
+  const positions = [];
+  const uvs = [];
+  const indices = [];
+
+  for (let zi = 0; zi <= zSegments; zi += 1) {
+    const z = (zi / zSegments) * params.height;
+    for (let ai = 0; ai <= angleSegments; ai += 1) {
+      const angle = (ai / angleSegments) * Math.PI;
+      const point = cylinderPoint(params, angle, z, radiusOffset);
+      positions.push(point.x, point.y, point.z);
+      uvs.push(ai / angleSegments, zi / zSegments);
+    }
+  }
+
+  const stride = angleSegments + 1;
+  for (let zi = 0; zi < zSegments; zi += 1) {
+    for (let ai = 0; ai < angleSegments; ai += 1) {
+      const a = zi * stride + ai;
+      const b = a + 1;
+      const c = a + stride;
+      const d = c + 1;
+      indices.push(a, b, d, a, d, c);
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+function addBaseCircle() {
   const params = getCylinderParams();
   if (params.radius <= 0) return;
 
   const points = [];
-  const segments = 96;
-  for (let i = 0; i < segments; i += 1) {
-    const angle = (i / segments) * Math.PI * 2;
-    points.push(project([
-      params.centerX + params.radius * Math.cos(angle),
-      params.centerY + params.radius * Math.sin(angle),
-      0.9,
-    ]));
+  for (let i = 0; i < 128; i += 1) {
+    const angle = (i / 128) * Math.PI * 2;
+    points.push(new THREE.Vector3(
+      params.radius * Math.cos(angle),
+      params.radius * Math.sin(angle),
+      0.8,
+    ));
   }
-
-  ctx.save();
-  drawClosedPolyline(points, "rgba(17, 98, 140, 0.82)", 1.8);
-  ctx.restore();
+  root.add(makeLine(points, materials.baseCircle, true));
 }
 
-function drawSemiCylinder() {
+function addSemiCylinder() {
   const params = getCylinderParams();
   if (params.radius <= 0 || params.height <= 0) return;
 
-  const segments = 40;
-  const rows = 8;
-  ctx.save();
+  const mesh = new THREE.Mesh(makeSemiCylinderGeometry(params), materials.cylinder);
+  root.add(mesh);
 
-  for (let row = rows - 1; row >= 0; row -= 1) {
-    const z0 = (row / rows) * params.height;
-    const z1 = ((row + 1) / rows) * params.height;
-    for (let i = 0; i < segments; i += 1) {
-      const a0 = (i / segments) * Math.PI;
-      const a1 = ((i + 1) / segments) * Math.PI;
-      const mid = (a0 + a1) / 2;
-      const shade = 0.54 + 0.36 * Math.cos(mid - Math.PI / 2);
-      const patch = [
-        project(semiCylinderPoint(params, a0, z0)),
-        project(semiCylinderPoint(params, a1, z0)),
-        project(semiCylinderPoint(params, a1, z1)),
-        project(semiCylinderPoint(params, a0, z1)),
-      ];
-      polygonPath(patch);
-      ctx.fillStyle = `rgba(${Math.round(95 + 80 * shade)}, ${Math.round(145 + 70 * shade)}, 205, 0.42)`;
-      ctx.fill();
-    }
+  const bottom = [];
+  const top = [];
+  for (let i = 0; i <= 72; i += 1) {
+    const angle = (i / 72) * Math.PI;
+    bottom.push(cylinderPoint(params, angle, 0));
+    top.push(cylinderPoint(params, angle, params.height));
   }
+  root.add(makeLine(bottom, materials.baseCircle));
+  root.add(makeLine(top, materials.baseCircle));
+  root.add(makeLine([cylinderPoint(params, 0, 0), cylinderPoint(params, 0, params.height)], materials.baseCircle));
+  root.add(makeLine([cylinderPoint(params, Math.PI, 0), cylinderPoint(params, Math.PI, params.height)], materials.baseCircle));
+}
 
-  const bottomArc = [];
-  const topArc = [];
+function addMeasurementAnnotations() {
+  const params = getCylinderParams();
+  if (params.radius <= 0) return;
+
+  const radiusAngle = Math.PI / 4;
+  const radiusStart = new THREE.Vector3(0, 0, 1.2);
+  const radiusEnd = cylinderPoint(params, radiusAngle, 1.2);
+  const labelPosition = radiusEnd.clone().multiplyScalar(0.5).add(new THREE.Vector3(0, 0, 0.15));
+  root.add(makeLine([radiusStart, radiusEnd], materials.measure));
+  root.add(makePlaneLabel("R", labelPosition, "#7b3f00", 18, 10));
+
+  const imagePlane = getImagePlaneMetrics(params);
+  if (!imagePlane || params.height <= 0) return;
+
+  const sourcePoint = new THREE.Vector3(0, imagePlane.y, imagePlane.topZ);
+  const rayAngle = Math.PI / 2;
+  const zHit = sourcePoint.z - (imagePlane.y - params.radius) * Math.tan(getLightThetaRadians());
+  if (zHit < 0 || zHit > params.height) return;
+
+  const hitPoint = cylinderPoint(params, rayAngle, zHit);
+  const horizontalEnd = new THREE.Vector3(hitPoint.x, hitPoint.y, sourcePoint.z);
+  root.add(makeLine([sourcePoint, hitPoint], materials.measure));
+  root.add(makeLine([sourcePoint, horizontalEnd], materials.measure));
+
+  const rayLength = sourcePoint.distanceTo(hitPoint);
+  const actualTheta = Math.atan2(Math.abs(sourcePoint.z - hitPoint.z), Math.max(0.001, sourcePoint.distanceTo(horizontalEnd)));
+  const arcRadius = Math.min(20, Math.max(8, rayLength * 0.22));
+  const arcPoints = [];
+  const segments = 24;
   for (let i = 0; i <= segments; i += 1) {
-    const angle = (i / segments) * Math.PI;
-    bottomArc.push(project(semiCylinderPoint(params, angle, 0)));
-    topArc.push(project(semiCylinderPoint(params, angle, params.height)));
+    const a = (i / segments) * actualTheta;
+    arcPoints.push(sourcePoint.clone().add(new THREE.Vector3(0, -arcRadius * Math.cos(a), -arcRadius * Math.sin(a))));
   }
+  root.add(makeLine(arcPoints, materials.measure));
 
-  drawPolyline(bottomArc, "rgba(30, 96, 145, 0.88)", 2);
-  drawPolyline(topArc, "rgba(30, 96, 145, 0.88)", 2);
-  drawSegment(project(semiCylinderPoint(params, 0, 0)), project(semiCylinderPoint(params, 0, params.height)), "rgba(30, 96, 145, 0.78)", 2);
-  drawSegment(project(semiCylinderPoint(params, Math.PI, 0)), project(semiCylinderPoint(params, Math.PI, params.height)), "rgba(30, 96, 145, 0.78)", 2);
-  drawSegment(project(semiCylinderPoint(params, 0, 0)), project(semiCylinderPoint(params, Math.PI, 0)), "rgba(30, 96, 145, 0.38)", 1.2);
-
-  const center = project([params.centerX, params.centerY, 0.8]);
-  ctx.fillStyle = "rgba(21, 67, 104, 0.9)";
-  ctx.beginPath();
-  ctx.arc(center.x, center.y, 3, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.restore();
+  const labelAngle = actualTheta / 2;
+  const labelPositionTheta = sourcePoint.clone().add(new THREE.Vector3(
+    0,
+    -(arcRadius + 10) * Math.cos(labelAngle),
+    -(arcRadius + 10) * Math.sin(labelAngle),
+  ));
+  root.add(makeLabel("\u03b8", labelPositionTheta, "#7b3f00"));
 }
 
-function drawProjectedImage(image, topLeft, topRight, bottomRight, bottomLeft) {
-  const sourceWidth = image.naturalWidth;
-  const sourceHeight = image.naturalHeight;
-  if (sourceWidth <= 0 || sourceHeight <= 0) return;
-
-  const tl = project(topLeft);
-  const tr = project(topRight);
-  const br = project(bottomRight);
-  const bl = project(bottomLeft);
-
-  ctx.save();
-  polygonPath([tl, tr, br, bl]);
-  ctx.clip();
-  ctx.transform(
-    (tr.x - tl.x) / sourceWidth,
-    (tr.y - tl.y) / sourceWidth,
-    (bl.x - tl.x) / sourceHeight,
-    (bl.y - tl.y) / sourceHeight,
-    tl.x,
-    tl.y,
-  );
-  ctx.drawImage(image, 0, 0);
-  ctx.restore();
-
-  ctx.save();
-  polygonPath([tl, tr, br, bl]);
-  ctx.strokeStyle = "rgba(34, 47, 62, 0.72)";
-  ctx.lineWidth = 1.4;
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawImagePatch(image, source, topLeft, topRight, bottomRight, bottomLeft) {
-  if (source.width <= 0 || source.height <= 0) return;
-
-  const tl = project(topLeft);
-  const tr = project(topRight);
-  const br = project(bottomRight);
-  const bl = project(bottomLeft);
-
-  ctx.save();
-  polygonPath([tl, tr, br, bl]);
-  ctx.clip();
-  ctx.transform(
-    (tr.x - tl.x) / source.width,
-    (tr.y - tl.y) / source.width,
-    (bl.x - tl.x) / source.height,
-    (bl.y - tl.y) / source.height,
-    tl.x,
-    tl.y,
-  );
-  ctx.drawImage(image, source.x, source.y, source.width, source.height, 0, 0, source.width, source.height);
-  ctx.restore();
-}
-
-function drawImagePlane() {
-  const image = controls.imagePreview;
-  if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
-
-  const params = getCylinderParams();
-  const imagePlane = getImagePlaneMetrics(params, image);
-
-  drawProjectedImage(
-    image,
-    [imagePlane.leftX, imagePlane.y, imagePlane.topZ],
-    [imagePlane.rightX, imagePlane.y, imagePlane.topZ],
-    [imagePlane.rightX, imagePlane.y, imagePlane.bottomZ],
-    [imagePlane.leftX, imagePlane.y, imagePlane.bottomZ],
-  );
-
-  drawSegment(
-    project([params.centerX, params.centerY + params.radius, Math.max(0, imagePlane.bottomZ)]),
-    project([params.centerX, imagePlane.y, Math.max(0, imagePlane.bottomZ)]),
-    "rgba(80, 92, 105, 0.5)",
-    1.1,
-  );
-}
-
-function sourcePointForCylinderPoint(point, params, imagePlane, image, tanTheta) {
-  const travelY = imagePlane.y - point[1];
-  const sourceZ = point[2] + travelY * tanTheta;
-  const u = ((point[0] - imagePlane.leftX) / imagePlane.imageWidth) * image.naturalWidth;
-  const v = ((imagePlane.topZ - sourceZ) / imagePlane.imageHeight) * image.naturalHeight;
-  return { u, v };
-}
-
-function drawMappedImageOnCylinder() {
-  const image = controls.imagePreview;
-  if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
-
-  const params = getCylinderParams();
-  if (params.radius <= 0 || params.height <= 0) return;
-
-  const imagePlane = getImagePlaneMetrics(params, image);
-  const tanTheta = Math.tan(getLightThetaRadians());
-  const angleSegments = 72;
-  const zSegments = 36;
-
-  ctx.save();
-  for (let ai = 0; ai < angleSegments; ai += 1) {
-    const a0 = (ai / angleSegments) * Math.PI;
-    const a1 = ((ai + 1) / angleSegments) * Math.PI;
-    const midAngle = (a0 + a1) / 2;
-
-    for (let zi = 0; zi < zSegments; zi += 1) {
-      const z0 = (zi / zSegments) * params.height;
-      const z1 = ((zi + 1) / zSegments) * params.height;
-      const midZ = (z0 + z1) / 2;
-      const centerWorld = semiCylinderPoint(params, midAngle, midZ);
-      const sourceCenter = sourcePointForCylinderPoint(centerWorld, params, imagePlane, image, tanTheta);
-      if (
-        sourceCenter.u < 0 ||
-        sourceCenter.u > image.naturalWidth ||
-        sourceCenter.v < 0 ||
-        sourceCenter.v > image.naturalHeight
-      ) {
-        continue;
-      }
-
-      const leftWorld = semiCylinderPoint(params, a1, midZ);
-      const rightWorld = semiCylinderPoint(params, a0, midZ);
-      const lowerWorld = semiCylinderPoint(params, midAngle, z0);
-      const upperWorld = semiCylinderPoint(params, midAngle, z1);
-      const sourceLeft = sourcePointForCylinderPoint(leftWorld, params, imagePlane, image, tanTheta);
-      const sourceRight = sourcePointForCylinderPoint(rightWorld, params, imagePlane, image, tanTheta);
-      const sourceLower = sourcePointForCylinderPoint(lowerWorld, params, imagePlane, image, tanTheta);
-      const sourceUpper = sourcePointForCylinderPoint(upperWorld, params, imagePlane, image, tanTheta);
-
-      const sx0 = Math.max(0, Math.min(sourceLeft.u, sourceRight.u));
-      const sx1 = Math.min(image.naturalWidth, Math.max(sourceLeft.u, sourceRight.u));
-      const sy0 = Math.max(0, Math.min(sourceUpper.v, sourceLower.v));
-      const sy1 = Math.min(image.naturalHeight, Math.max(sourceUpper.v, sourceLower.v));
-      if (sx1 - sx0 < 0.5 || sy1 - sy0 < 0.5) continue;
-
-      drawImagePatch(
-        image,
-        { x: sx0, y: sy0, width: sx1 - sx0, height: sy1 - sy0 },
-        semiCylinderPoint(params, a1, z1),
-        semiCylinderPoint(params, a0, z1),
-        semiCylinderPoint(params, a0, z0),
-        semiCylinderPoint(params, a1, z0),
-      );
-    }
-  }
-  ctx.restore();
-}
-
-function lerpPoint(a, b, t) {
+function getImagePlaneMetrics(params) {
+  if (!controls.imagePreview.naturalWidth || !controls.imagePreview.naturalHeight) return null;
+  const imageHeight = getImageHeight();
+  const imageWidth = imageHeight * (controls.imagePreview.naturalWidth / controls.imagePreview.naturalHeight);
+  const bottomZ = getImageBottomZ();
+  const outsideGap = Math.max(24, params.radius * 0.6);
+  const paperTopY = A4_HEIGHT - params.centerY;
+  const y = Math.max(params.radius + outsideGap, paperTopY + outsideGap);
   return {
-    x: a.x + (b.x - a.x) * t,
-    y: a.y + (b.y - a.y) * t,
+    imageHeight,
+    imageWidth,
+    bottomZ,
+    topZ: bottomZ + imageHeight,
+    y,
+    leftX: -imageWidth / 2,
+    rightX: imageWidth / 2,
   };
 }
 
-function drawPaperGrain(paper, front) {
-  ctx.save();
-  polygonPath(paper);
-  ctx.clip();
-  ctx.strokeStyle = front ? "rgba(120, 135, 150, 0.08)" : "rgba(120, 135, 150, 0.05)";
-  ctx.lineWidth = 0.7;
-  for (let i = 1; i < 7; i += 1) {
-    const t = i / 7;
-    const a = lerpPoint(paper[0], paper[3], t);
-    const b = lerpPoint(paper[1], paper[2], t);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-  for (let i = 1; i < 5; i += 1) {
-    const t = i / 5;
-    const a = lerpPoint(paper[0], paper[1], t);
-    const b = lerpPoint(paper[3], paper[2], t);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
-  }
-  ctx.restore();
+function addImagePlane() {
+  if (!state.imageTexture) return;
+  const params = getCylinderParams();
+  const imagePlane = getImagePlaneMetrics(params);
+  if (!imagePlane) return;
+
+  const geometry = new THREE.PlaneGeometry(imagePlane.imageWidth, imagePlane.imageHeight);
+  const material = new THREE.MeshBasicMaterial({
+    map: state.imageTexture,
+    side: THREE.DoubleSide,
+    transparent: true,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(0, imagePlane.y, imagePlane.bottomZ + imagePlane.imageHeight / 2);
+  mesh.rotation.x = Math.PI / 2;
+  root.add(mesh);
+
+  const corners = [
+    new THREE.Vector3(imagePlane.leftX, imagePlane.y, imagePlane.topZ),
+    new THREE.Vector3(imagePlane.rightX, imagePlane.y, imagePlane.topZ),
+    new THREE.Vector3(imagePlane.rightX, imagePlane.y, imagePlane.bottomZ),
+    new THREE.Vector3(imagePlane.leftX, imagePlane.y, imagePlane.bottomZ),
+  ];
+  root.add(makeLine(corners, materials.imagePlaneFrame, true));
+  root.add(makeLine([
+    new THREE.Vector3(0, params.radius, Math.max(0, imagePlane.bottomZ)),
+    new THREE.Vector3(0, imagePlane.y, Math.max(0, imagePlane.bottomZ)),
+  ], materials.guide));
 }
 
-function draw() {
-  resizeCanvas();
-  ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-  drawPaper();
-  drawCylinderBaseCircle();
-  drawImagePlane();
-  drawSemiCylinder();
-  drawMappedImageOnCylinder();
-  requestAnimationFrame(draw);
+function sourcePointForCylinderPoint(point, params, imagePlane, tanTheta) {
+  const travelY = imagePlane.y - point.y;
+  const sourceZ = point.z + travelY * tanTheta;
+  return {
+    u: ((point.x - imagePlane.leftX) / imagePlane.imageWidth) * controls.imagePreview.naturalWidth,
+    v: ((imagePlane.topZ - sourceZ) / imagePlane.imageHeight) * controls.imagePreview.naturalHeight,
+  };
+}
+
+function cylinderPointToA4(point, params, angle, theta) {
+  const tanTheta = Math.tan(theta);
+  if (Math.abs(tanTheta) < 0.001) return null;
+
+  const radialDistance = params.radius + point.z / tanTheta;
+  return {
+    x: params.centerX + radialDistance * Math.cos(angle),
+    y: params.centerY + radialDistance * Math.sin(angle),
+  };
+}
+
+function sampleSourcePixel(source, sourcePoint) {
+  const sx = Math.round(sourcePoint.u);
+  const sy = Math.round(sourcePoint.v);
+  if (sx < 0 || sx >= source.width || sy < 0 || sy >= source.height) return null;
+
+  const index = (sy * source.width + sx) * 4;
+  return [
+    source.data[index],
+    source.data[index + 1],
+    source.data[index + 2],
+    source.data[index + 3],
+  ];
+}
+
+function splatPixel(imageData, width, height, x, y, color) {
+  const px = Math.round(x);
+  const py = Math.round(y);
+  for (let oy = -1; oy <= 1; oy += 1) {
+    for (let ox = -1; ox <= 1; ox += 1) {
+      const tx = px + ox;
+      const ty = py + oy;
+      if (tx < 0 || tx >= width || ty < 0 || ty >= height) continue;
+
+      const index = (ty * width + tx) * 4;
+      imageData.data[index] = color[0];
+      imageData.data[index + 1] = color[1];
+      imageData.data[index + 2] = color[2];
+      imageData.data[index + 3] = color[3];
+    }
+  }
+}
+
+function rebuildMappedTexture() {
+  if (!state.sourceCanvas.width || !state.sourceCanvas.height) return null;
+  const params = getCylinderParams();
+  if (params.radius <= 0 || params.height <= 0) return null;
+  const imagePlane = getImagePlaneMetrics(params);
+  if (!imagePlane) return null;
+
+  const width = 512;
+  const height = 512;
+  const mappedCanvas = document.createElement("canvas");
+  mappedCanvas.width = width;
+  mappedCanvas.height = height;
+  const mappedCtx = mappedCanvas.getContext("2d");
+  const output = mappedCtx.createImageData(width, height);
+  const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
+  const tanTheta = Math.tan(getLightThetaRadians());
+
+  for (let y = 0; y < height; y += 1) {
+    const z = (1 - y / (height - 1)) * params.height;
+    for (let x = 0; x < width; x += 1) {
+      const angle = (x / (width - 1)) * Math.PI;
+      const point = cylinderPoint(params, angle, z);
+      const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane, tanTheta);
+      const outIndex = (y * width + x) * 4;
+      const color = sampleSourcePixel(source, sourcePoint);
+      if (!color) {
+        output.data[outIndex + 3] = 0;
+        continue;
+      }
+      output.data[outIndex] = color[0];
+      output.data[outIndex + 1] = color[1];
+      output.data[outIndex + 2] = color[2];
+      output.data[outIndex + 3] = color[3];
+    }
+  }
+
+  mappedCtx.putImageData(output, 0, 0);
+  const texture = new THREE.CanvasTexture(mappedCanvas);
+  setTextureColor(texture);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function addMappedCylinder() {
+  if (!state.imageTexture) return;
+  const params = getCylinderParams();
+  if (params.radius <= 0 || params.height <= 0) return;
+
+  const texture = rebuildMappedTexture();
+  if (!texture) return;
+  if (state.mappedTexture) state.mappedTexture.dispose();
+  state.mappedTexture = texture;
+
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(makeSemiCylinderGeometry(params, 128, 48, 0.28), material);
+  root.add(mesh);
+}
+
+function rebuildPaperMapTexture() {
+  if (!state.sourceCanvas.width || !state.sourceCanvas.height) return null;
+  const params = getCylinderParams();
+  if (params.radius <= 0 || params.height <= 0) return null;
+  const imagePlane = getImagePlaneMetrics(params);
+  if (!imagePlane) return null;
+
+  const theta = Math.abs(getLightThetaRadians());
+  if (theta < 0.001) return null;
+
+  const width = 840;
+  const height = 1188;
+  const paperCanvas = document.createElement("canvas");
+  paperCanvas.width = width;
+  paperCanvas.height = height;
+  const paperCtx = paperCanvas.getContext("2d");
+  const output = paperCtx.createImageData(width, height);
+  const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
+  const tanIncidentTheta = Math.tan(getLightThetaRadians());
+  const phiSamples = 960;
+  const paperPhiRange = Math.PI * 2;
+  const zSamples = 640;
+
+  for (let zi = 0; zi < zSamples; zi += 1) {
+    const z = (zi / (zSamples - 1)) * params.height;
+    for (let pi = 0; pi < phiSamples; pi += 1) {
+      const phi = (pi / (phiSamples - 1)) * paperPhiRange;
+      const point = cylinderPoint(params, phi, z);
+      const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane, tanIncidentTheta);
+      const color = sampleSourcePixel(source, sourcePoint);
+      if (!color) continue;
+
+      const a4Point = cylinderPointToA4(point, params, phi, theta);
+      if (!a4Point) continue;
+      if (a4Point.x < 0 || a4Point.x > A4_WIDTH || a4Point.y < 0 || a4Point.y > A4_HEIGHT) continue;
+
+      const tx = (a4Point.x / A4_WIDTH) * (width - 1);
+      const ty = (1 - a4Point.y / A4_HEIGHT) * (height - 1);
+      splatPixel(output, width, height, tx, ty, color);
+    }
+  }
+
+  paperCtx.putImageData(output, 0, 0);
+  const texture = new THREE.CanvasTexture(paperCanvas);
+  setTextureColor(texture);
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function addMappedPaper() {
+  if (!state.imageTexture) return;
+  const params = getCylinderParams();
+  const texture = rebuildPaperMapTexture();
+  if (!texture) return;
+
+  if (state.paperMapTexture) state.paperMapTexture.dispose();
+  state.paperMapTexture = texture;
+
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(A4_WIDTH, A4_HEIGHT), material);
+  mesh.position.set(A4_WIDTH / 2 - params.centerX, A4_HEIGHT / 2 - params.centerY, 1.05);
+  root.add(mesh);
+}
+
+function rebuildScene() {
+  clearRoot();
+  addPaper();
+  addMappedPaper();
+  addAxes();
+  addBaseCircle();
+  addImagePlane();
+  addSemiCylinder();
+  addMappedCylinder();
+  addMeasurementAnnotations();
+}
+
+function updateCamera() {
+  const sinPhi = Math.sin(orbit.phi);
+  camera.position.set(
+    orbit.target.x + orbit.radius * sinPhi * Math.cos(orbit.theta),
+    orbit.target.y + orbit.radius * sinPhi * Math.sin(orbit.theta),
+    orbit.target.z + orbit.radius * Math.cos(orbit.phi),
+  );
+  camera.up.set(0, 0, 1);
+  camera.lookAt(orbit.target);
+}
+
+function resizeRenderer() {
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  renderer.setSize(width, height, false);
+  camera.aspect = Math.max(1, width) / Math.max(1, height);
+  camera.updateProjectionMatrix();
+}
+
+function animate() {
+  resizeRenderer();
+  updateCamera();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
 }
 
 function updateImagePreview() {
@@ -542,13 +608,17 @@ function updateImagePreview() {
     URL.revokeObjectURL(state.imageUrl);
     state.imageUrl = null;
   }
+  if (state.imageTexture) {
+    state.imageTexture.dispose();
+    state.imageTexture = null;
+  }
 
   if (!file) {
-    controls.imagePath.value = "未选择图片";
     controls.imagePath.value = "\u672a\u9009\u62e9\u56fe\u7247";
     controls.imagePath.title = "";
     controls.imagePreview.removeAttribute("src");
     controls.imagePreview.parentElement.classList.remove("has-image");
+    rebuildScene();
     return;
   }
 
@@ -570,70 +640,94 @@ function fitImagePreview() {
   const image = controls.imagePreview;
   const preview = image.parentElement;
   if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
-
-  const boxWidth = preview.clientWidth;
-  const boxHeight = preview.clientHeight;
-  if (boxWidth <= 0 || boxHeight <= 0) return;
-
-  const scale = Math.min(boxWidth / image.naturalWidth, boxHeight / image.naturalHeight, 1);
+  const scale = Math.min(preview.clientWidth / image.naturalWidth, preview.clientHeight / image.naturalHeight, 1);
   image.style.width = `${Math.floor(image.naturalWidth * scale)}px`;
   image.style.height = `${Math.floor(image.naturalHeight * scale)}px`;
 }
 
+function updateTexturesFromImage() {
+  const image = controls.imagePreview;
+  if (!image.complete || image.naturalWidth <= 0 || image.naturalHeight <= 0) return;
+
+  state.sourceCanvas.width = image.naturalWidth;
+  state.sourceCanvas.height = image.naturalHeight;
+  state.sourceCtx.drawImage(image, 0, 0);
+
+  state.imageTexture = new THREE.Texture(image);
+  setTextureColor(state.imageTexture);
+  state.imageTexture.needsUpdate = true;
+  fitImagePreview();
+  rebuildScene();
+}
+
 function beginDrag(event) {
   canvas.setPointerCapture(event.pointerId);
-  state.pointerMode = event.button === 2 || event.shiftKey ? "pan" : "rotate";
-  state.drag = {
+  orbit.mode = event.button === 2 || event.shiftKey ? "pan" : "rotate";
+  orbit.drag = {
     x: event.clientX,
     y: event.clientY,
-    panX: state.panX,
-    panY: state.panY,
-    rotation: state.rotation.map((row) => row.slice()),
+    theta: orbit.theta,
+    phi: orbit.phi,
+    target: orbit.target.clone(),
   };
 }
 
 function moveDrag(event) {
-  if (!state.drag) return;
-  const dx = event.clientX - state.drag.x;
-  const dy = event.clientY - state.drag.y;
-  if (state.pointerMode === "pan") {
-    state.panX = state.drag.panX + dx;
-    state.panY = state.drag.panY + dy;
+  if (!orbit.drag) return;
+  const dx = event.clientX - orbit.drag.x;
+  const dy = event.clientY - orbit.drag.y;
+
+  if (orbit.mode === "pan") {
+    const panScale = orbit.radius / 720;
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+    const up = new THREE.Vector3().copy(camera.up).normalize();
+    orbit.target.copy(orbit.drag.target)
+      .addScaledVector(right, -dx * panScale)
+      .addScaledVector(up, dy * panScale);
     return;
   }
 
-  const rotateY = rotationY(dx * 0.01);
-  const rotateX = rotationX(dy * 0.01);
-  state.rotation = multiplyMatrix(rotateX, multiplyMatrix(rotateY, state.drag.rotation));
+  orbit.theta = orbit.drag.theta - dx * 0.008;
+  orbit.phi = Math.max(0.08, Math.min(Math.PI - 0.08, orbit.drag.phi + dy * 0.008));
 }
 
 function endDrag(event) {
-  if (state.drag) {
-    canvas.releasePointerCapture(event.pointerId);
-  }
-  state.drag = null;
+  if (orbit.drag) canvas.releasePointerCapture(event.pointerId);
+  orbit.drag = null;
 }
 
+function scheduleRebuild() {
+  rebuildScene();
+}
+
+Object.values(controls).forEach((control) => {
+  if (control && control.tagName === "INPUT" && control.type !== "file") {
+    control.addEventListener("input", scheduleRebuild);
+  }
+});
+
+controls.imageFile.addEventListener("change", updateImagePreview);
+controls.imagePreview.addEventListener("load", updateTexturesFromImage);
 canvas.addEventListener("pointerdown", beginDrag);
 canvas.addEventListener("pointermove", moveDrag);
 canvas.addEventListener("pointerup", endDrag);
 canvas.addEventListener("pointercancel", endDrag);
 canvas.addEventListener("contextmenu", (event) => event.preventDefault());
-controls.imageFile.addEventListener("change", updateImagePreview);
-controls.imagePreview.addEventListener("load", fitImagePreview);
-
 canvas.addEventListener(
   "wheel",
   (event) => {
     event.preventDefault();
-    const factor = event.deltaY > 0 ? 1.08 : 0.92;
-    state.distance = Math.max(170, Math.min(1800, state.distance * factor));
+    orbit.radius = Math.max(120, Math.min(2200, orbit.radius * (event.deltaY > 0 ? 1.08 : 0.92)));
   },
   { passive: false },
 );
 
 window.addEventListener("resize", () => {
-  resizeCanvas();
+  resizeRenderer();
   fitImagePreview();
 });
-requestAnimationFrame(draw);
+
+rebuildScene();
+requestAnimationFrame(animate);
