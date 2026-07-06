@@ -312,6 +312,12 @@ function addMeasurementAnnotations() {
   root.add(makeLine([sourcePoint, hitPoint], materials.measure));
   root.add(makeLine([sourcePoint, horizontalEnd], materials.measure));
 
+  const reflected = reflectedDirectionForCylinderAngle(rayAngle, getLightThetaRadians());
+  if (reflected && reflected.z < -0.001) {
+    const paperHit = hitPoint.clone().add(reflected.multiplyScalar(-hitPoint.z / reflected.z));
+    root.add(makeLine([hitPoint, paperHit], materials.measure));
+  }
+
   const rayLength = sourcePoint.distanceTo(hitPoint);
   const actualTheta = Math.atan2(Math.abs(sourcePoint.z - hitPoint.z), Math.max(0.001, sourcePoint.distanceTo(horizontalEnd)));
   const arcRadius = Math.min(20, Math.max(8, rayLength * 0.22));
@@ -390,14 +396,26 @@ function sourcePointForCylinderPoint(point, params, imagePlane, tanTheta) {
   };
 }
 
-function cylinderPointToA4(point, params, angle, theta) {
-  const tanTheta = Math.tan(theta);
-  if (Math.abs(tanTheta) < 0.001) return null;
+function reflectedDirectionForCylinderAngle(angle, theta) {
+  const downwardTheta = Math.abs(theta);
+  if (downwardTheta < 0.001) return null;
 
-  const radialDistance = params.radius + point.z / tanTheta;
+  const incident = new THREE.Vector3(0, -Math.cos(downwardTheta), -Math.sin(downwardTheta));
+  const normal = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
+  return incident.sub(normal.multiplyScalar(2 * incident.dot(normal)));
+}
+
+function cylinderPointToA4(point, params, angle, theta) {
+  const reflected = reflectedDirectionForCylinderAngle(angle, theta);
+  if (!reflected || reflected.z >= -0.001) return null;
+
+  const travel = -point.z / reflected.z;
+  if (travel < 0) return null;
+
+  const paperHit = point.clone().add(reflected.multiplyScalar(travel));
   return {
-    x: params.centerX + radialDistance * Math.cos(angle),
-    y: params.centerY + radialDistance * Math.sin(angle),
+    x: params.centerX + paperHit.x,
+    y: params.centerY + paperHit.y,
   };
 }
 
@@ -514,8 +532,8 @@ function rebuildPaperMapTexture() {
   const output = paperCtx.createImageData(width, height);
   const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
   const tanIncidentTheta = Math.tan(getLightThetaRadians());
-  const phiSamples = 960;
-  const paperPhiRange = Math.PI * 2;
+  const phiSamples = 640;
+  const paperPhiRange = Math.PI;
   const zSamples = 640;
 
   for (let zi = 0; zi < zSamples; zi += 1) {
