@@ -322,35 +322,27 @@ function addMeasurementAnnotations() {
   const imagePlane = getImagePlaneMetrics(params);
   if (!imagePlane || params.height <= 0) return;
 
-  const sourcePoint = new THREE.Vector3(0, imagePlane.y, imagePlane.topZ);
-  const rayAngle = Math.PI / 2;
-  const zHit = sourcePoint.z - (imagePlane.y - params.radius) * Math.tan(getLightThetaRadians());
-  if (zHit < 0 || zHit > params.height) return;
+  const observer = getObserverPoint(imagePlane);
+  const topMidpoint = new THREE.Vector3(0, imagePlane.y, imagePlane.topZ);
+  const rayEnd = extendObserverRay(observer, topMidpoint, params);
+  const horizontalEnd = new THREE.Vector3(observer.x, Math.max(0, observer.y - observer.distanceTo(rayEnd)), observer.z);
+  root.add(makeLine([observer, rayEnd], materials.measure));
+  root.add(makeLine([observer, horizontalEnd], materials.measure));
 
-  const hitPoint = cylinderPoint(params, rayAngle, zHit);
-  const horizontalEnd = new THREE.Vector3(hitPoint.x, hitPoint.y, sourcePoint.z);
-  root.add(makeLine([sourcePoint, hitPoint], materials.measure));
-  root.add(makeLine([sourcePoint, horizontalEnd], materials.measure));
-
-  const reflected = reflectedDirectionForCylinderAngle(rayAngle, getLightThetaRadians());
-  if (reflected && reflected.z < -0.001) {
-    const paperHit = hitPoint.clone().add(reflected.multiplyScalar(-hitPoint.z / reflected.z));
-    root.add(makeLine([hitPoint, paperHit], materials.measure));
-  }
-
-  const rayLength = sourcePoint.distanceTo(hitPoint);
-  const actualTheta = Math.atan2(Math.abs(sourcePoint.z - hitPoint.z), Math.max(0.001, sourcePoint.distanceTo(horizontalEnd)));
-  const arcRadius = Math.min(20, Math.max(8, rayLength * 0.22));
+  const rayDirection = rayEnd.clone().sub(observer).normalize();
+  const horizontalDirection = new THREE.Vector3(0, -1, 0);
+  const actualTheta = Math.acos(Math.max(-1, Math.min(1, rayDirection.dot(horizontalDirection))));
+  const arcRadius = Math.min(20, Math.max(8, observer.distanceTo(rayEnd) * 0.16));
   const arcPoints = [];
   const segments = 24;
   for (let i = 0; i <= segments; i += 1) {
     const a = (i / segments) * actualTheta;
-    arcPoints.push(sourcePoint.clone().add(new THREE.Vector3(0, -arcRadius * Math.cos(a), -arcRadius * Math.sin(a))));
+    arcPoints.push(observer.clone().add(new THREE.Vector3(0, -arcRadius * Math.cos(a), -arcRadius * Math.sin(a))));
   }
   root.add(makeLine(arcPoints, materials.measure));
 
   const labelAngle = actualTheta / 2;
-  const labelPositionTheta = sourcePoint.clone().add(new THREE.Vector3(
+  const labelPositionTheta = observer.clone().add(new THREE.Vector3(
     0,
     -(arcRadius + 10) * Math.cos(labelAngle),
     -(arcRadius + 10) * Math.sin(labelAngle),
@@ -529,21 +521,65 @@ function sampleSourcePixel(source, sourcePoint) {
   ];
 }
 
-function splatPixel(imageData, width, height, x, y, color) {
+function setMappedPixel(imageData, width, height, x, y, color) {
   const px = Math.round(x);
   const py = Math.round(y);
-  for (let oy = -1; oy <= 1; oy += 1) {
-    for (let ox = -1; ox <= 1; ox += 1) {
-      const tx = px + ox;
-      const ty = py + oy;
-      if (tx < 0 || tx >= width || ty < 0 || ty >= height) continue;
+  if (px < 0 || px >= width || py < 0 || py >= height) return;
 
-      const index = (ty * width + tx) * 4;
-      imageData.data[index] = color[0];
-      imageData.data[index + 1] = color[1];
-      imageData.data[index + 2] = color[2];
-      imageData.data[index + 3] = color[3];
+  const index = (py * width + px) * 4;
+  imageData.data[index] = color[0];
+  imageData.data[index + 1] = color[1];
+  imageData.data[index + 2] = color[2];
+  imageData.data[index + 3] = color[3];
+}
+
+function fillImageDataHoles(imageData, width, height, options = {}) {
+  const iterations = options.iterations || 1;
+  const minNeighbors = options.minNeighbors || 3;
+  const data = imageData.data;
+
+  for (let iteration = 0; iteration < iterations; iteration += 1) {
+    const next = new Uint8ClampedArray(data);
+    let changed = false;
+
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const index = (y * width + x) * 4;
+        if (data[index + 3] !== 0) continue;
+
+        let count = 0;
+        let red = 0;
+        let green = 0;
+        let blue = 0;
+        let alpha = 0;
+
+        for (let oy = -1; oy <= 1; oy += 1) {
+          for (let ox = -1; ox <= 1; ox += 1) {
+            if (ox === 0 && oy === 0) continue;
+            const neighborIndex = ((y + oy) * width + x + ox) * 4;
+            const neighborAlpha = data[neighborIndex + 3];
+            if (neighborAlpha === 0) continue;
+
+            count += 1;
+            red += data[neighborIndex];
+            green += data[neighborIndex + 1];
+            blue += data[neighborIndex + 2];
+            alpha += neighborAlpha;
+          }
+        }
+
+        if (count < minNeighbors) continue;
+
+        next[index] = red / count;
+        next[index + 1] = green / count;
+        next[index + 2] = blue / count;
+        next[index + 3] = alpha / count;
+        changed = true;
+      }
     }
+
+    data.set(next);
+    if (!changed) break;
   }
 }
 
@@ -671,6 +707,7 @@ function rebuildMappedTexture() {
     }
   }
 
+  fillImageDataHoles(output, width, height, { iterations: 1, minNeighbors: 4 });
   mappedCtx.putImageData(output, 0, 0);
   const texture = new THREE.CanvasTexture(mappedCanvas);
   setTextureColor(texture);
@@ -715,9 +752,9 @@ function buildPaperMapCanvas() {
   const paperCtx = paperCanvas.getContext("2d");
   const output = paperCtx.createImageData(width, height);
   const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
-  const phiSamples = 640;
+  const phiSamples = 960;
   const paperPhiRange = Math.PI;
-  const zSamples = 640;
+  const zSamples = 960;
 
   for (let zi = 0; zi < zSamples; zi += 1) {
     const z = (zi / (zSamples - 1)) * params.height;
@@ -734,10 +771,11 @@ function buildPaperMapCanvas() {
 
       const tx = (a4Point.x / A4_WIDTH) * (width - 1);
       const ty = (1 - a4Point.y / A4_HEIGHT) * (height - 1);
-      splatPixel(output, width, height, tx, ty, color);
+      setMappedPixel(output, width, height, tx, ty, color);
     }
   }
 
+  fillImageDataHoles(output, width, height, { iterations: 3, minNeighbors: 2 });
   paperCtx.putImageData(output, 0, 0);
   paperCtx.save();
   paperCtx.globalCompositeOperation = "destination-over";
