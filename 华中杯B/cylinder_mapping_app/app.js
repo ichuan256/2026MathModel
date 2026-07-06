@@ -66,6 +66,19 @@ function setTextureColor(texture) {
   }
 }
 
+function disableTextureFiltering(texture) {
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+}
+
+function prepareDisplayTexture(texture) {
+  setTextureColor(texture);
+  disableTextureFiltering(texture);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 const materials = {
   paper: new THREE.MeshBasicMaterial({ color: 0xfafcff, side: THREE.DoubleSide }),
   paperEdge: new THREE.LineBasicMaterial({ color: 0x5f6d7a, transparent: true, opacity: 0.62 }),
@@ -624,7 +637,11 @@ function drawPaperMapAnnotations(ctx, params, theta) {
   const scale = width / A4_WIDTH;
   const radius = params.radius * scale;
   const thetaDeg = Math.abs((theta * 180) / Math.PI);
+  const observer = getObserverPoint();
+  const imageY = numberValue(controls.imageY, 210);
   const imageBottomZ = getImageBottomZ();
+  const imageTopZ = imageBottomZ + getImageHeight();
+  const sourceResolution = getSourceResolution();
 
   ctx.save();
   ctx.lineCap = "round";
@@ -658,13 +675,18 @@ function drawPaperMapAnnotations(ctx, params, theta) {
     `R = ${params.radius.toFixed(2)} mm`,
     `theta = ${thetaDeg.toFixed(2)} deg`,
     `center = (${params.centerX.toFixed(2)}, ${params.centerY.toFixed(2)}) mm`,
-    `height = ${params.height.toFixed(2)} mm`,
-    `image z = ${imageBottomZ.toFixed(2)} mm`,
+    `cylinder h = ${params.height.toFixed(2)} mm`,
+    `Eye = (${observer.x.toFixed(2)}, ${observer.y.toFixed(2)}, ${observer.z.toFixed(2)}) mm`,
+    `image y = ${imageY.toFixed(2)} mm`,
+    `image z = ${imageBottomZ.toFixed(2)}-${imageTopZ.toFixed(2)} mm`,
+    `source = ${sourceResolution.width} x ${sourceResolution.height} px`,
+    "texture filter = nearest",
   ];
   const boxX = 18;
   const boxY = 18;
   const lineHeight = 28;
-  const boxWidth = 360;
+  ctx.font = "20px Microsoft YaHei, Segoe UI, sans-serif";
+  const boxWidth = Math.ceil(Math.max(...lines.map((line) => ctx.measureText(line).width))) + 28;
   const boxHeight = lines.length * lineHeight + 22;
 
   ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
@@ -746,9 +768,7 @@ function rebuildMappedTexture() {
   fillImageDataHoles(output, width, height, { iterations: 1, minNeighbors: 4 });
   mappedCtx.putImageData(output, 0, 0);
   const texture = new THREE.CanvasTexture(mappedCanvas);
-  setTextureColor(texture);
-  texture.needsUpdate = true;
-  return texture;
+  return prepareDisplayTexture(texture);
 }
 
 function addMappedCylinder() {
@@ -835,9 +855,7 @@ function rebuildPaperMapTexture() {
   updatePaperPreview(paperCanvas);
 
   const texture = new THREE.CanvasTexture(paperCanvas);
-  setTextureColor(texture);
-  texture.needsUpdate = true;
-  return texture;
+  return prepareDisplayTexture(texture);
 }
 
 function addMappedPaper() {
@@ -926,7 +944,7 @@ function updateImagePreview() {
   }
 
   state.selectedFileName = file.name;
-  controls.exportStatus.textContent = "";
+  controls.exportStatus.textContent = "\u70b9\u51fb\u5bfc\u51fa\u65f6\u9009\u62e9\u7eb8\u9762\u56fe\u50cf\u4fdd\u5b58\u6587\u4ef6\u5939";
   const selectedPath = controls.imageFile.value || "";
   const displayPath =
     file.path && !file.path.includes("fakepath")
@@ -959,8 +977,7 @@ function updateTexturesFromImage() {
   state.sourceCtx.drawImage(image, 0, 0);
 
   state.imageTexture = new THREE.Texture(image);
-  setTextureColor(state.imageTexture);
-  state.imageTexture.needsUpdate = true;
+  prepareDisplayTexture(state.imageTexture);
   fitImagePreview();
   rebuildScene();
 }
@@ -989,6 +1006,49 @@ function downloadBlob(blob, fileName) {
   URL.revokeObjectURL(url);
 }
 
+function describeExportError(error) {
+  if (!error) return "\u672a\u77e5\u9519\u8bef";
+  return error.message || error.name || String(error);
+}
+
+async function ensureDirectoryWritePermission(directoryHandle) {
+  if (!directoryHandle) return false;
+  if (!directoryHandle.queryPermission || !directoryHandle.requestPermission) return true;
+
+  const options = { mode: "readwrite" };
+  if ((await directoryHandle.queryPermission(options)) === "granted") return true;
+  return (await directoryHandle.requestPermission(options)) === "granted";
+}
+
+async function exportBlobToChosenFolder(blob, fileName) {
+  const directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+  const allowed = await ensureDirectoryWritePermission(directoryHandle);
+  if (!allowed) {
+    controls.exportStatus.textContent = "\u672a\u83b7\u5f97\u6587\u4ef6\u5939\u5199\u5165\u6743\u9650";
+    return false;
+  }
+
+  const fileHandle = await directoryHandle.getFileHandle(fileName, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+  controls.exportStatus.textContent = `\u5df2\u5bfc\u51fa\u5230 ${directoryHandle.name}\uff1a${fileName}`;
+  return true;
+}
+
+async function saveBlobWithFilePicker(blob, fileName) {
+  const handle = await window.showSaveFilePicker({
+    suggestedName: fileName,
+    types: [{
+      description: "PNG image",
+      accept: { "image/png": [".png"] },
+    }],
+  });
+  const writable = await handle.createWritable();
+  await writable.write(blob);
+  await writable.close();
+}
+
 async function exportPaperMap() {
   if (!state.paperMapCanvas) {
     const paperCanvas = buildPaperMapCanvas();
@@ -1007,31 +1067,44 @@ async function exportPaperMap() {
   }
 
   const fileName = getExportFileName();
+  let folderError = "";
+  if (window.showDirectoryPicker) {
+    try {
+      if (await exportBlobToChosenFolder(blob, fileName)) return;
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        controls.exportStatus.textContent = "\u5df2\u53d6\u6d88\u5bfc\u51fa";
+        return;
+      }
+      folderError = describeExportError(error);
+    }
+  } else {
+    folderError = "\u5f53\u524d\u6d4f\u89c8\u5668\u4e0d\u652f\u6301\u9009\u62e9\u6587\u4ef6\u5939";
+  }
+
   if (window.showSaveFilePicker) {
     try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: fileName,
-        types: [{
-          description: "PNG image",
-          accept: { "image/png": [".png"] },
-        }],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      controls.exportStatus.textContent = `\u5df2\u5bfc\u51fa\uff1a${fileName}`;
+      await saveBlobWithFilePicker(blob, fileName);
+      controls.exportStatus.textContent = folderError
+        ? `\u5df2\u901a\u8fc7\u4fdd\u5b58\u5bf9\u8bdd\u6846\u5bfc\u51fa\uff1a${fileName}\uff1b\u6587\u4ef6\u5939\u5199\u5165\u5931\u8d25\uff1a${folderError}`
+        : `\u5df2\u5bfc\u51fa\uff1a${fileName}`;
       return;
     } catch (error) {
       if (error && error.name === "AbortError") {
         controls.exportStatus.textContent = "\u5df2\u53d6\u6d88\u5bfc\u51fa";
         return;
       }
+      const saveError = describeExportError(error);
+      downloadBlob(blob, fileName);
+      controls.exportStatus.textContent = `\u5df2\u6539\u4e3a\u4e0b\u8f7d\uff1a${fileName}\uff1b\u4fdd\u5b58\u5bf9\u8bdd\u6846\u5931\u8d25\uff1a${saveError}`;
+      return;
     }
   }
 
   downloadBlob(blob, fileName);
-  controls.exportStatus.textContent =
-    `\u5df2\u4e0b\u8f7d\uff1a${fileName}\uff1b\u6d4f\u89c8\u5668\u4e0d\u5141\u8bb8\u7f51\u9875\u81ea\u52a8\u5199\u5165\u539f\u56fe\u540c\u76ee\u5f55`;
+  controls.exportStatus.textContent = folderError
+    ? `\u5df2\u6539\u4e3a\u4e0b\u8f7d\uff1a${fileName}\uff1b\u6587\u4ef6\u5939\u5199\u5165\u4e0d\u53ef\u7528\uff1a${folderError}`
+    : `\u5df2\u4e0b\u8f7d\uff1a${fileName}`;
 }
 
 function beginDrag(event) {

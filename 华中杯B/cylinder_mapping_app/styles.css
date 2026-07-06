@@ -90,23 +90,19 @@ body {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.image-picker {
+.preview-row {
   border-top: 1px solid rgba(120, 135, 150, 0.26);
   margin-top: 10px;
   padding-top: 10px;
-  display: inline-block;
-  width: calc(50% - 6px);
-  vertical-align: top;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
 }
 
+.image-picker,
 .paper-output {
-  border-top: 1px solid rgba(120, 135, 150, 0.26);
-  margin-top: 10px;
-  margin-left: 8px;
-  padding-top: 10px;
-  display: inline-block;
-  width: calc(50% - 6px);
-  vertical-align: top;
+  min-width: 0;
 }
 
 .paper-output h2 {
@@ -122,7 +118,8 @@ body {
 
 .image-preview {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 4 / 5;
+  min-height: 260px;
   border: 1px dashed #b8c5d0;
   border-radius: 6px;
   display: grid;
@@ -181,10 +178,10 @@ body {
 
 .paper-output button {
   width: 100%;
-  margin-top: 8px;
+  margin-top: 6px;
   border: 1px solid #98a9b8;
   border-radius: 6px;
-  padding: 7px 9px;
+  padding: 6px 8px;
   font: inherit;
   color: #ffffff;
   background: #2f6f9f;
