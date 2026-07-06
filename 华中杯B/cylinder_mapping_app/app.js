@@ -115,10 +115,6 @@ function getImageHeight() {
   return Math.max(1, numberValue(controls.imageHeight, 90));
 }
 
-function getLightThetaRadians() {
-  return (Math.max(-85, Math.min(85, numberValue(controls.lightTheta))) * Math.PI) / 180;
-}
-
 function getObserverPoint(imagePlane = null) {
   void imagePlane;
   return new THREE.Vector3(
@@ -126,6 +122,21 @@ function getObserverPoint(imagePlane = null) {
     numberValue(controls.observerY, 210),
     numberValue(controls.observerZ, 55),
   );
+}
+
+function getDisplayedThetaRadians(imagePlane = null) {
+  const plane = imagePlane || getImagePlaneMetrics(getCylinderParams());
+  if (!plane) return 0;
+
+  const observer = getObserverPoint(plane);
+  const topMidpoint = new THREE.Vector3(0, plane.y, plane.topZ);
+  const direction = topMidpoint.clone().sub(observer).normalize();
+  const horizontal = new THREE.Vector3(0, -1, 0);
+  return Math.acos(Math.max(-1, Math.min(1, direction.dot(horizontal))));
+}
+
+function updateThetaDisplay(imagePlane = null) {
+  controls.lightTheta.value = ((getDisplayedThetaRadians(imagePlane) * 180) / Math.PI).toFixed(2);
 }
 
 function clearRoot() {
@@ -321,6 +332,7 @@ function addMeasurementAnnotations() {
 
   const imagePlane = getImagePlaneMetrics(params);
   if (!imagePlane || params.height <= 0) return;
+  updateThetaDisplay(imagePlane);
 
   const observer = getObserverPoint(imagePlane);
   const topMidpoint = new THREE.Vector3(0, imagePlane.y, imagePlane.topZ);
@@ -331,7 +343,7 @@ function addMeasurementAnnotations() {
 
   const rayDirection = rayEnd.clone().sub(observer).normalize();
   const horizontalDirection = new THREE.Vector3(0, -1, 0);
-  const actualTheta = Math.acos(Math.max(-1, Math.min(1, rayDirection.dot(horizontalDirection))));
+  const actualTheta = getDisplayedThetaRadians(imagePlane);
   const arcRadius = Math.min(20, Math.max(8, observer.distanceTo(rayEnd) * 0.16));
   const arcPoints = [];
   const segments = 24;
@@ -483,23 +495,23 @@ function sourcePointForCylinderPoint(point, params, imagePlane) {
   };
 }
 
-function reflectedDirectionForCylinderAngle(angle, theta) {
-  const downwardTheta = Math.abs(theta);
-  if (downwardTheta < 0.001) return null;
+function cylinderPointToA4(point, params, angle) {
+  const observer = getObserverPoint();
+  const h = observer.z;
+  const z = point.z;
+  if (Math.abs(h - z) < 0.000001) return null;
 
-  const incident = new THREE.Vector3(0, -Math.cos(downwardTheta), -Math.sin(downwardTheta));
-  const normal = new THREE.Vector3(Math.cos(angle), Math.sin(angle), 0);
-  return incident.sub(normal.multiplyScalar(2 * incident.dot(normal)));
-}
-
-function cylinderPointToA4(point, params, angle, theta) {
-  const reflected = reflectedDirectionForCylinderAngle(angle, theta);
-  if (!reflected || reflected.z >= -0.001) return null;
-
-  const travel = -point.z / reflected.z;
-  if (travel < 0) return null;
-
-  const paperHit = point.clone().add(reflected.multiplyScalar(travel));
+  const x0 = 0;
+  const y0 = observer.y;
+  const r = params.radius;
+  const cosAngle = Math.cos(angle);
+  const sinAngle = Math.sin(angle);
+  const distanceAlongNormal = x0 * cosAngle + y0 * sinAngle - r;
+  const denominator = h - z;
+  const paperHit = {
+    x: (h * r * cosAngle - z * x0 + 2 * z * distanceAlongNormal * cosAngle) / denominator,
+    y: (h * r * sinAngle - z * y0 + 2 * z * distanceAlongNormal * sinAngle) / denominator,
+  };
   return {
     x: params.centerX + paperHit.x,
     y: params.centerY + paperHit.y,
@@ -508,16 +520,32 @@ function cylinderPointToA4(point, params, angle, theta) {
 
 function sampleSourcePixel(source, sourcePoint) {
   if (!sourcePoint) return null;
-  const sx = Math.round(sourcePoint.u);
-  const sy = Math.round(sourcePoint.v);
-  if (sx < 0 || sx >= source.width || sy < 0 || sy >= source.height) return null;
+  const u = sourcePoint.u;
+  const v = sourcePoint.v;
+  if (u < 0 || u > source.width - 1 || v < 0 || v > source.height - 1) return null;
 
-  const index = (sy * source.width + sx) * 4;
+  const x0 = Math.floor(u);
+  const y0 = Math.floor(v);
+  const x1 = Math.min(source.width - 1, x0 + 1);
+  const y1 = Math.min(source.height - 1, y0 + 1);
+  const tx = u - x0;
+  const ty = v - y0;
+
+  const topLeft = (y0 * source.width + x0) * 4;
+  const topRight = (y0 * source.width + x1) * 4;
+  const bottomLeft = (y1 * source.width + x0) * 4;
+  const bottomRight = (y1 * source.width + x1) * 4;
+  const color = [0, 0, 0, 0];
+  for (let channel = 0; channel < 4; channel += 1) {
+    const top = source.data[topLeft + channel] * (1 - tx) + source.data[topRight + channel] * tx;
+    const bottom = source.data[bottomLeft + channel] * (1 - tx) + source.data[bottomRight + channel] * tx;
+    color[channel] = top * (1 - ty) + bottom * ty;
+  }
   return [
-    source.data[index],
-    source.data[index + 1],
-    source.data[index + 2],
-    source.data[index + 3],
+    color[0],
+    color[1],
+    color[2],
+    color[3],
   ];
 }
 
@@ -672,6 +700,13 @@ function updatePaperPreview(paperCanvas) {
   controls.exportPaper.disabled = false;
 }
 
+function getSourceResolution() {
+  return {
+    width: Math.max(1, state.sourceCanvas.width),
+    height: Math.max(1, state.sourceCanvas.height),
+  };
+}
+
 function rebuildMappedTexture() {
   if (!state.sourceCanvas.width || !state.sourceCanvas.height) return null;
   const params = getCylinderParams();
@@ -679,19 +714,20 @@ function rebuildMappedTexture() {
   const imagePlane = getImagePlaneMetrics(params);
   if (!imagePlane) return null;
 
-  const width = 512;
-  const height = 512;
+  const { width, height } = getSourceResolution();
   const mappedCanvas = document.createElement("canvas");
   mappedCanvas.width = width;
   mappedCanvas.height = height;
   const mappedCtx = mappedCanvas.getContext("2d");
   const output = mappedCtx.createImageData(width, height);
   const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
+  const xDenominator = Math.max(1, width - 1);
+  const yDenominator = Math.max(1, height - 1);
 
   for (let y = 0; y < height; y += 1) {
-    const z = (1 - y / (height - 1)) * params.height;
+    const z = (1 - y / yDenominator) * params.height;
     for (let x = 0; x < width; x += 1) {
-      const angle = (x / (width - 1)) * Math.PI;
+      const angle = (x / xDenominator) * Math.PI;
       const point = cylinderPoint(params, angle, z);
       const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane);
       const outIndex = (y * width + x) * 4;
@@ -741,31 +777,33 @@ function buildPaperMapCanvas() {
   const imagePlane = getImagePlaneMetrics(params);
   if (!imagePlane) return null;
 
-  const theta = Math.abs(getLightThetaRadians());
-  if (theta < 0.001) return null;
+  const theta = getDisplayedThetaRadians(imagePlane);
 
-  const width = 840;
-  const height = 1188;
+  const sourceResolution = getSourceResolution();
+  const width = sourceResolution.width;
+  const height = Math.max(1, Math.round(width * (A4_HEIGHT / A4_WIDTH)));
   const paperCanvas = document.createElement("canvas");
   paperCanvas.width = width;
   paperCanvas.height = height;
   const paperCtx = paperCanvas.getContext("2d");
   const output = paperCtx.createImageData(width, height);
   const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
-  const phiSamples = 960;
+  const phiSamples = sourceResolution.width;
   const paperPhiRange = Math.PI;
-  const zSamples = 960;
+  const zSamples = sourceResolution.height;
+  const phiDenominator = Math.max(1, phiSamples - 1);
+  const zDenominator = Math.max(1, zSamples - 1);
 
   for (let zi = 0; zi < zSamples; zi += 1) {
-    const z = (zi / (zSamples - 1)) * params.height;
+    const z = (zi / zDenominator) * params.height;
     for (let pi = 0; pi < phiSamples; pi += 1) {
-      const phi = (pi / (phiSamples - 1)) * paperPhiRange;
+      const phi = (pi / phiDenominator) * paperPhiRange;
       const point = cylinderPoint(params, phi, z);
       const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane);
       const color = sampleSourcePixel(source, sourcePoint);
       if (!color) continue;
 
-      const a4Point = cylinderPointToA4(point, params, phi, theta);
+      const a4Point = cylinderPointToA4(point, params, phi);
       if (!a4Point) continue;
       if (a4Point.x < 0 || a4Point.x > A4_WIDTH || a4Point.y < 0 || a4Point.y > A4_HEIGHT) continue;
 
@@ -827,6 +865,7 @@ function addMappedPaper() {
 
 function rebuildScene() {
   clearRoot();
+  updateThetaDisplay();
   addPaper();
   addMappedPaper();
   addAxes();
