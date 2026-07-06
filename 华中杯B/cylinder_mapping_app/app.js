@@ -15,6 +15,10 @@ const controls = {
   imageFile: document.getElementById("imageFile"),
   imagePath: document.getElementById("imagePath"),
   imagePreview: document.getElementById("imagePreview"),
+  paperPreview: document.getElementById("paperPreview"),
+  paperEmpty: document.getElementById("paperEmpty"),
+  exportPaper: document.getElementById("exportPaper"),
+  exportStatus: document.getElementById("exportStatus"),
 };
 
 const A4_WIDTH = 210;
@@ -45,6 +49,8 @@ const state = {
   sourceCtx: null,
   mappedTexture: null,
   paperMapTexture: null,
+  paperMapCanvas: null,
+  selectedFileName: "",
 };
 
 state.sourceCtx = state.sourceCanvas.getContext("2d", { willReadFrequently: true });
@@ -451,6 +457,95 @@ function splatPixel(imageData, width, height, x, y, color) {
   }
 }
 
+function paperToCanvasPoint(x, y, width, height) {
+  return {
+    x: (x / A4_WIDTH) * width,
+    y: (1 - y / A4_HEIGHT) * height,
+  };
+}
+
+function drawPaperMapAnnotations(ctx, params, theta) {
+  const { width, height } = ctx.canvas;
+  const center = paperToCanvasPoint(params.centerX, params.centerY, width, height);
+  const scale = width / A4_WIDTH;
+  const radius = params.radius * scale;
+  const thetaDeg = Math.abs((theta * 180) / Math.PI);
+  const imageBottomZ = getImageBottomZ();
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "rgba(20, 55, 80, 0.92)";
+  ctx.fillStyle = "rgba(20, 55, 80, 0.92)";
+  ctx.lineWidth = 3;
+
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(center.x - 8, center.y);
+  ctx.lineTo(center.x + 8, center.y);
+  ctx.moveTo(center.x, center.y - 8);
+  ctx.lineTo(center.x, center.y + 8);
+  ctx.stroke();
+
+  const radiusEnd = paperToCanvasPoint(params.centerX + params.radius, params.centerY, width, height);
+  ctx.beginPath();
+  ctx.moveTo(center.x, center.y);
+  ctx.lineTo(radiusEnd.x, radiusEnd.y);
+  ctx.stroke();
+
+  ctx.font = "22px Microsoft YaHei, Segoe UI, sans-serif";
+  ctx.fillText("R", (center.x + radiusEnd.x) / 2 + 8, center.y - 10);
+
+  const lines = [
+    "A4 mapping",
+    `R = ${params.radius.toFixed(2)} mm`,
+    `theta = ${thetaDeg.toFixed(2)} deg`,
+    `center = (${params.centerX.toFixed(2)}, ${params.centerY.toFixed(2)}) mm`,
+    `height = ${params.height.toFixed(2)} mm`,
+    `image z = ${imageBottomZ.toFixed(2)} mm`,
+  ];
+  const boxX = 18;
+  const boxY = 18;
+  const lineHeight = 28;
+  const boxWidth = 360;
+  const boxHeight = lines.length * lineHeight + 22;
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.86)";
+  ctx.strokeStyle = "rgba(20, 55, 80, 0.35)";
+  ctx.lineWidth = 2;
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+  ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+  ctx.fillStyle = "rgba(20, 55, 80, 0.96)";
+  ctx.font = "20px Microsoft YaHei, Segoe UI, sans-serif";
+  lines.forEach((line, index) => {
+    ctx.fillText(line, boxX + 14, boxY + 30 + index * lineHeight);
+  });
+  ctx.restore();
+}
+
+function clearPaperPreview(message = "\u7b49\u5f85\u751f\u6210\u7eb8\u9762\u56fe\u50cf") {
+  const previewCanvas = controls.paperPreview;
+  const previewCtx = previewCanvas.getContext("2d");
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  previewCanvas.parentElement.classList.remove("has-image");
+  controls.paperEmpty.textContent = message;
+  controls.exportPaper.disabled = true;
+  state.paperMapCanvas = null;
+}
+
+function updatePaperPreview(paperCanvas) {
+  const previewCanvas = controls.paperPreview;
+  const previewCtx = previewCanvas.getContext("2d");
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  previewCtx.drawImage(paperCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+  previewCanvas.parentElement.classList.add("has-image");
+  controls.exportPaper.disabled = false;
+}
+
 function rebuildMappedTexture() {
   if (!state.sourceCanvas.width || !state.sourceCanvas.height) return null;
   const params = getCylinderParams();
@@ -513,7 +608,7 @@ function addMappedCylinder() {
   root.add(mesh);
 }
 
-function rebuildPaperMapTexture() {
+function buildPaperMapCanvas() {
   if (!state.sourceCanvas.width || !state.sourceCanvas.height) return null;
   const params = getCylinderParams();
   if (params.radius <= 0 || params.height <= 0) return null;
@@ -556,6 +651,25 @@ function rebuildPaperMapTexture() {
   }
 
   paperCtx.putImageData(output, 0, 0);
+  paperCtx.save();
+  paperCtx.globalCompositeOperation = "destination-over";
+  paperCtx.fillStyle = "#ffffff";
+  paperCtx.fillRect(0, 0, width, height);
+  paperCtx.restore();
+  drawPaperMapAnnotations(paperCtx, params, theta);
+  return paperCanvas;
+}
+
+function rebuildPaperMapTexture() {
+  const paperCanvas = buildPaperMapCanvas();
+  if (!paperCanvas) {
+    clearPaperPreview("\u53c2\u6570\u4e0d\u8db3\uff0c\u65e0\u6cd5\u751f\u6210\u7eb8\u9762\u56fe\u50cf");
+    return null;
+  }
+
+  state.paperMapCanvas = paperCanvas;
+  updatePaperPreview(paperCanvas);
+
   const texture = new THREE.CanvasTexture(paperCanvas);
   setTextureColor(texture);
   texture.needsUpdate = true;
@@ -563,7 +677,10 @@ function rebuildPaperMapTexture() {
 }
 
 function addMappedPaper() {
-  if (!state.imageTexture) return;
+  if (!state.imageTexture) {
+    clearPaperPreview();
+    return;
+  }
   const params = getCylinderParams();
   const texture = rebuildPaperMapTexture();
   if (!texture) return;
@@ -632,14 +749,18 @@ function updateImagePreview() {
   }
 
   if (!file) {
+    state.selectedFileName = "";
     controls.imagePath.value = "\u672a\u9009\u62e9\u56fe\u7247";
     controls.imagePath.title = "";
+    controls.exportStatus.textContent = "";
     controls.imagePreview.removeAttribute("src");
     controls.imagePreview.parentElement.classList.remove("has-image");
     rebuildScene();
     return;
   }
 
+  state.selectedFileName = file.name;
+  controls.exportStatus.textContent = "";
   const selectedPath = controls.imageFile.value || "";
   const displayPath =
     file.path && !file.path.includes("fakepath")
@@ -676,6 +797,75 @@ function updateTexturesFromImage() {
   state.imageTexture.needsUpdate = true;
   fitImagePreview();
   rebuildScene();
+}
+
+function getExportFileName() {
+  const sourceName = state.selectedFileName || "paper_mapping";
+  const dotIndex = sourceName.lastIndexOf(".");
+  const baseName = dotIndex > 0 ? sourceName.slice(0, dotIndex) : sourceName;
+  return `${baseName}_a4_mapping.png`;
+}
+
+function canvasToBlob(targetCanvas) {
+  return new Promise((resolve) => {
+    targetCanvas.toBlob((blob) => resolve(blob), "image/png");
+  });
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function exportPaperMap() {
+  if (!state.paperMapCanvas) {
+    const paperCanvas = buildPaperMapCanvas();
+    if (!paperCanvas) {
+      controls.exportStatus.textContent = "\u8bf7\u5148\u9009\u62e9\u56fe\u7247\u5e76\u8bbe\u7f6e\u6709\u6548\u53c2\u6570";
+      return;
+    }
+    state.paperMapCanvas = paperCanvas;
+    updatePaperPreview(paperCanvas);
+  }
+
+  const blob = await canvasToBlob(state.paperMapCanvas);
+  if (!blob) {
+    controls.exportStatus.textContent = "\u5bfc\u51fa\u5931\u8d25\uff1a\u65e0\u6cd5\u751f\u6210 PNG";
+    return;
+  }
+
+  const fileName = getExportFileName();
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{
+          description: "PNG image",
+          accept: { "image/png": [".png"] },
+        }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      controls.exportStatus.textContent = `\u5df2\u5bfc\u51fa\uff1a${fileName}`;
+      return;
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        controls.exportStatus.textContent = "\u5df2\u53d6\u6d88\u5bfc\u51fa";
+        return;
+      }
+    }
+  }
+
+  downloadBlob(blob, fileName);
+  controls.exportStatus.textContent =
+    `\u5df2\u4e0b\u8f7d\uff1a${fileName}\uff1b\u6d4f\u89c8\u5668\u4e0d\u5141\u8bb8\u7f51\u9875\u81ea\u52a8\u5199\u5165\u539f\u56fe\u540c\u76ee\u5f55`;
 }
 
 function beginDrag(event) {
@@ -728,6 +918,7 @@ Object.values(controls).forEach((control) => {
 
 controls.imageFile.addEventListener("change", updateImagePreview);
 controls.imagePreview.addEventListener("load", updateTexturesFromImage);
+controls.exportPaper.addEventListener("click", exportPaperMap);
 canvas.addEventListener("pointerdown", beginDrag);
 canvas.addEventListener("pointermove", moveDrag);
 canvas.addEventListener("pointerup", endDrag);

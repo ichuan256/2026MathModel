@@ -16,7 +16,7 @@ body {
 }
 
 body {
-  background: radial-gradient(circle at 50% 42%, #fbfcfe 0%, #edf2f7 46%, #dbe4ed 100%);
+  background: #edf2f7;
 }
 
 .app {
@@ -32,6 +32,7 @@ body {
   padding: 18px;
   font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
   color: #24313d;
+  overflow-y: auto;
 }
 
 .sidebar h1 {
@@ -60,6 +61,18 @@ body {
   border-top: 1px solid rgba(120, 135, 150, 0.26);
   margin-top: 18px;
   padding-top: 16px;
+}
+
+.paper-output {
+  border-top: 1px solid rgba(120, 135, 150, 0.26);
+  margin-top: 18px;
+  padding-top: 16px;
+}
+
+.paper-output h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 650;
 }
 
 .path-display {
@@ -96,6 +109,60 @@ body {
 
 .image-preview.has-image span {
   display: none;
+}
+
+.paper-preview {
+  width: 100%;
+  aspect-ratio: 210 / 297;
+  border: 1px dashed #b8c5d0;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #f6f8fa;
+  color: #7a8793;
+  font: 13px "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+
+.paper-preview canvas {
+  display: none;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+}
+
+.paper-preview.has-image canvas {
+  display: block;
+}
+
+.paper-preview.has-image span {
+  display: none;
+}
+
+.paper-output button {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid #98a9b8;
+  border-radius: 6px;
+  padding: 9px 10px;
+  font: inherit;
+  color: #ffffff;
+  background: #2f6f9f;
+  cursor: pointer;
+}
+
+.paper-output button:disabled {
+  color: #7f8b96;
+  background: #e2e8ee;
+  cursor: not-allowed;
+}
+
+.export-status {
+  min-height: 18px;
+  margin: 8px 0 0;
+  color: #586776;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 #scene {
