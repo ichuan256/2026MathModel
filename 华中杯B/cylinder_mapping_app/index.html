@@ -10,34 +10,63 @@
     <main class="app">
       <aside class="sidebar">
         <h1>&#21322;&#22278;&#26609;&#38754;</h1>
-        <label>
-          &#24213;&#38754;&#22278;&#24515; x
-          <input id="centerX" type="number" value="105" step="1" />
-        </label>
-        <label>
-          &#24213;&#38754;&#22278;&#24515; y
-          <input id="centerY" type="number" value="120" step="1" />
-        </label>
-        <label>
-          &#21322;&#22278;&#26609;&#39640;&#24230;
-          <input id="cylinderHeight" type="number" value="90" step="1" min="0" />
-        </label>
-        <label>
-          &#21322;&#22278;&#26609;&#21322;&#24452;
-          <input id="cylinderRadius" type="number" value="35" step="1" min="0" />
-        </label>
-        <label>
-          &#22270;&#29255;&#24213;&#36793; z
-          <input id="imageBottomZ" type="number" value="0" step="1" />
-        </label>
-        <label>
-          &#22270;&#29255;&#39640;&#24230;
-          <input id="imageHeight" type="number" value="90" step="1" min="1" />
-        </label>
-        <label>
-          &#20809;&#32447;&#19979;&#20542;&#35282; theta
-          <input id="lightTheta" type="number" value="20" step="1" min="-85" max="85" />
-        </label>
+        <div class="control-board">
+          <section class="control-panel">
+            <h2>&#22278;&#26609;</h2>
+            <div class="control-grid">
+              <label>
+                &#22278;&#24515; x
+                <input id="centerX" type="number" value="105" step="1" />
+              </label>
+              <label>
+                &#22278;&#24515; y
+                <input id="centerY" type="number" value="120" step="1" />
+              </label>
+              <label>
+                &#39640;&#24230;
+                <input id="cylinderHeight" type="number" value="90" step="1" min="0" />
+              </label>
+              <label>
+                &#21322;&#24452; R
+                <input id="cylinderRadius" type="number" value="35" step="1" min="0" />
+              </label>
+            </div>
+          </section>
+          <section class="control-panel">
+            <h2>&#20809;&#32447;&#19982;&#35266;&#23519;</h2>
+            <div class="control-grid">
+              <label>
+                theta
+                <input id="lightTheta" type="number" value="20" step="1" min="-85" max="85" />
+              </label>
+              <label>
+                &#35266;&#23519;&#28857; y
+                <input id="observerY" type="number" value="260" step="1" />
+              </label>
+              <label>
+                &#35266;&#23519;&#28857; z
+                <input id="observerZ" type="number" value="55" step="1" />
+              </label>
+            </div>
+          </section>
+          <section class="control-panel">
+            <h2>&#22270;&#29255;</h2>
+            <div class="control-grid">
+              <label>
+                &#22270;&#29255; y
+                <input id="imageY" type="number" value="210" step="1" />
+              </label>
+              <label>
+                &#24213;&#36793; z
+                <input id="imageBottomZ" type="number" value="0" step="1" />
+              </label>
+              <label>
+                &#39640;&#24230;
+                <input id="imageHeight" type="number" value="90" step="1" min="1" />
+              </label>
+            </div>
+          </section>
+        </div>
         <section class="image-picker">
           <label>
             &#21407;&#22270;&#29255;&#25991;&#20214;

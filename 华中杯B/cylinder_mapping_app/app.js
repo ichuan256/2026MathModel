@@ -9,9 +9,12 @@ const controls = {
   centerY: document.getElementById("centerY"),
   cylinderHeight: document.getElementById("cylinderHeight"),
   cylinderRadius: document.getElementById("cylinderRadius"),
+  imageY: document.getElementById("imageY"),
   imageBottomZ: document.getElementById("imageBottomZ"),
   imageHeight: document.getElementById("imageHeight"),
   lightTheta: document.getElementById("lightTheta"),
+  observerY: document.getElementById("observerY"),
+  observerZ: document.getElementById("observerZ"),
   imageFile: document.getElementById("imageFile"),
   imagePath: document.getElementById("imagePath"),
   imagePreview: document.getElementById("imagePreview"),
@@ -81,6 +84,8 @@ const materials = {
   imagePlaneFrame: new THREE.LineBasicMaterial({ color: 0x22303e }),
   guide: new THREE.LineBasicMaterial({ color: 0x6f7f8c, transparent: true, opacity: 0.55 }),
   measure: new THREE.LineBasicMaterial({ color: 0x7b3f00 }),
+  observer: new THREE.MeshBasicMaterial({ color: 0xe24b3b }),
+  observerLine: new THREE.LineBasicMaterial({ color: 0xe24b3b, transparent: true, opacity: 0.72 }),
 };
 
 function numberValue(input, fallback = 0) {
@@ -112,6 +117,15 @@ function getImageHeight() {
 
 function getLightThetaRadians() {
   return (Math.max(-85, Math.min(85, numberValue(controls.lightTheta))) * Math.PI) / 180;
+}
+
+function getObserverPoint(imagePlane = null) {
+  void imagePlane;
+  return new THREE.Vector3(
+    0,
+    numberValue(controls.observerY, 210),
+    numberValue(controls.observerZ, 55),
+  );
 }
 
 function clearRoot() {
@@ -203,7 +217,7 @@ function addPaper() {
 
 function addAxes() {
   const params = getCylinderParams();
-  const zHeight = Math.max(params.height, getImageBottomZ() + getImageHeight(), 30) * 1.08 + 12;
+  const zHeight = Math.max(params.height, getImageBottomZ() + getImageHeight(), numberValue(controls.observerZ, 55), 30) * 1.08 + 12;
   const xEnd = Math.max(A4_WIDTH - params.centerX, params.radius + 25, 30);
   const yEnd = Math.max(A4_HEIGHT - params.centerY, params.radius + 25, 30);
   root.add(makeLine([new THREE.Vector3(0, 0, 1), new THREE.Vector3(xEnd, 0, 1)], materials.xAxis));
@@ -349,9 +363,7 @@ function getImagePlaneMetrics(params) {
   const imageHeight = getImageHeight();
   const imageWidth = imageHeight * (controls.imagePreview.naturalWidth / controls.imagePreview.naturalHeight);
   const bottomZ = getImageBottomZ();
-  const outsideGap = Math.max(24, params.radius * 0.6);
-  const paperTopY = A4_HEIGHT - params.centerY;
-  const y = Math.max(params.radius + outsideGap, paperTopY + outsideGap);
+  const y = numberValue(controls.imageY, 210);
   return {
     imageHeight,
     imageWidth,
@@ -393,12 +405,89 @@ function addImagePlane() {
   ], materials.guide));
 }
 
-function sourcePointForCylinderPoint(point, params, imagePlane, tanTheta) {
-  const travelY = imagePlane.y - point.y;
-  const sourceZ = point.z + travelY * tanTheta;
+function getCylinderRayHits(origin, direction, params) {
+  const a = direction.x * direction.x + direction.y * direction.y;
+  const b = 2 * (origin.x * direction.x + origin.y * direction.y);
+  const c = origin.x * origin.x + origin.y * origin.y - params.radius * params.radius;
+  const candidates = [];
+
+  if (a > 0.000001) {
+    const discriminant = b * b - 4 * a * c;
+    if (discriminant >= 0) {
+      const root = Math.sqrt(discriminant);
+      candidates.push((-b - root) / (2 * a), (-b + root) / (2 * a));
+    }
+  }
+
+  return candidates
+    .filter((t) => t >= 0)
+    .map((t) => ({
+      t,
+      point: origin.clone().add(direction.clone().multiplyScalar(t)),
+    }))
+    .filter(({ point }) => point.y >= -0.001 && point.z >= 0 && point.z <= params.height)
+    .sort((left, right) => left.t - right.t);
+}
+
+function isFirstCylinderHit(observer, point, params) {
+  const direction = point.clone().sub(observer);
+  const hits = getCylinderRayHits(observer, direction, params);
+  if (!hits.length) return false;
+
+  return !hits.some(({ t }) => t < 0.995);
+}
+
+function extendObserverRay(observer, corner, params) {
+  const direction = corner.clone().sub(observer);
+  const cylinderHit = getCylinderRayHits(observer, direction, params)
+    .filter(({ t }) => t >= 1)
+    .map(({ point }) => point)[0];
+  if (cylinderHit) return cylinderHit;
+
+  if (Math.abs(direction.y) > 0.000001) {
+    const t = -observer.y / direction.y;
+    if (t >= 1) return observer.clone().add(direction.multiplyScalar(t));
+  }
+
+  return corner;
+}
+
+function addObserverPoint() {
+  const params = getCylinderParams();
+  const imagePlane = getImagePlaneMetrics(params);
+  if (!imagePlane) return;
+
+  const observer = getObserverPoint(imagePlane);
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(3.5, 24, 16), materials.observer);
+  sphere.position.copy(observer);
+  root.add(sphere);
+  root.add(makeLabel("Eye", observer.clone().add(new THREE.Vector3(4, 4, 5)), "#b93428"));
+
+  const imageCorners = [
+    new THREE.Vector3(imagePlane.leftX, imagePlane.y, imagePlane.topZ),
+    new THREE.Vector3(imagePlane.rightX, imagePlane.y, imagePlane.topZ),
+    new THREE.Vector3(imagePlane.rightX, imagePlane.y, imagePlane.bottomZ),
+    new THREE.Vector3(imagePlane.leftX, imagePlane.y, imagePlane.bottomZ),
+  ];
+  imageCorners.forEach((corner) => {
+    root.add(makeLine([observer, extendObserverRay(observer, corner, params)], materials.observerLine));
+  });
+}
+
+function sourcePointForCylinderPoint(point, params, imagePlane) {
+  const observer = getObserverPoint(imagePlane);
+  if (!isFirstCylinderHit(observer, point, params)) return null;
+
+  const direction = point.clone().sub(observer);
+  if (Math.abs(direction.y) < 0.000001) return null;
+
+  const t = (imagePlane.y - observer.y) / direction.y;
+  if (t < 0 || t > 1) return null;
+
+  const imagePoint = observer.clone().add(direction.multiplyScalar(t));
   return {
-    u: ((point.x - imagePlane.leftX) / imagePlane.imageWidth) * controls.imagePreview.naturalWidth,
-    v: ((imagePlane.topZ - sourceZ) / imagePlane.imageHeight) * controls.imagePreview.naturalHeight,
+    u: ((imagePoint.x - imagePlane.leftX) / imagePlane.imageWidth) * controls.imagePreview.naturalWidth,
+    v: ((imagePlane.topZ - imagePoint.z) / imagePlane.imageHeight) * controls.imagePreview.naturalHeight,
   };
 }
 
@@ -426,6 +515,7 @@ function cylinderPointToA4(point, params, angle, theta) {
 }
 
 function sampleSourcePixel(source, sourcePoint) {
+  if (!sourcePoint) return null;
   const sx = Math.round(sourcePoint.u);
   const sy = Math.round(sourcePoint.v);
   if (sx < 0 || sx >= source.width || sy < 0 || sy >= source.height) return null;
@@ -561,14 +651,13 @@ function rebuildMappedTexture() {
   const mappedCtx = mappedCanvas.getContext("2d");
   const output = mappedCtx.createImageData(width, height);
   const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
-  const tanTheta = Math.tan(getLightThetaRadians());
 
   for (let y = 0; y < height; y += 1) {
     const z = (1 - y / (height - 1)) * params.height;
     for (let x = 0; x < width; x += 1) {
       const angle = (x / (width - 1)) * Math.PI;
       const point = cylinderPoint(params, angle, z);
-      const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane, tanTheta);
+      const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane);
       const outIndex = (y * width + x) * 4;
       const color = sampleSourcePixel(source, sourcePoint);
       if (!color) {
@@ -626,7 +715,6 @@ function buildPaperMapCanvas() {
   const paperCtx = paperCanvas.getContext("2d");
   const output = paperCtx.createImageData(width, height);
   const source = state.sourceCtx.getImageData(0, 0, state.sourceCanvas.width, state.sourceCanvas.height);
-  const tanIncidentTheta = Math.tan(getLightThetaRadians());
   const phiSamples = 640;
   const paperPhiRange = Math.PI;
   const zSamples = 640;
@@ -636,7 +724,7 @@ function buildPaperMapCanvas() {
     for (let pi = 0; pi < phiSamples; pi += 1) {
       const phi = (pi / (phiSamples - 1)) * paperPhiRange;
       const point = cylinderPoint(params, phi, z);
-      const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane, tanIncidentTheta);
+      const sourcePoint = sourcePointForCylinderPoint(point, params, imagePlane);
       const color = sampleSourcePixel(source, sourcePoint);
       if (!color) continue;
 
@@ -706,6 +794,7 @@ function rebuildScene() {
   addAxes();
   addBaseCircle();
   addImagePlane();
+  addObserverPoint();
   addSemiCylinder();
   addMappedCylinder();
   addMeasurementAnnotations();

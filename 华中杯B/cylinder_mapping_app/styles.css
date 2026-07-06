@@ -23,66 +23,106 @@ body {
   width: 100vw;
   height: 100vh;
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: minmax(520px, 36vw) minmax(0, 1fr);
 }
 
 .sidebar {
   background: rgba(255, 255, 255, 0.92);
   border-right: 1px solid rgba(120, 135, 150, 0.32);
-  padding: 18px;
+  padding: 14px;
   font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
   color: #24313d;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .sidebar h1 {
-  margin: 0 0 18px;
-  font-size: 20px;
+  margin: 0 0 10px;
+  font-size: 19px;
   font-weight: 650;
 }
 
 .sidebar label {
   display: grid;
-  gap: 7px;
-  margin-bottom: 14px;
-  font-size: 13px;
+  gap: 5px;
+  margin-bottom: 0;
+  font-size: 12px;
 }
 
 .sidebar input {
   width: 100%;
   border: 1px solid #ccd6df;
-  border-radius: 6px;
-  padding: 8px 9px;
+  border-radius: 5px;
+  padding: 6px 7px;
   font: inherit;
   background: #fbfcfd;
 }
 
+.control-board {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.control-panel {
+  border: 1px solid rgba(120, 135, 150, 0.22);
+  border-radius: 6px;
+  padding: 9px;
+  background: rgba(250, 252, 253, 0.72);
+}
+
+.control-panel h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.control-panel:nth-child(3) {
+  grid-column: 1 / -1;
+}
+
+.control-panel:nth-child(3) .control-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .image-picker {
   border-top: 1px solid rgba(120, 135, 150, 0.26);
-  margin-top: 18px;
-  padding-top: 16px;
+  margin-top: 10px;
+  padding-top: 10px;
+  display: inline-block;
+  width: calc(50% - 6px);
+  vertical-align: top;
 }
 
 .paper-output {
   border-top: 1px solid rgba(120, 135, 150, 0.26);
-  margin-top: 18px;
-  padding-top: 16px;
+  margin-top: 10px;
+  margin-left: 8px;
+  padding-top: 10px;
+  display: inline-block;
+  width: calc(50% - 6px);
+  vertical-align: top;
 }
 
 .paper-output h2 {
-  margin: 0 0 12px;
-  font-size: 15px;
+  margin: 0 0 8px;
+  font-size: 13px;
   font-weight: 650;
 }
 
 .path-display {
   color: #53606c;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .image-preview {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 9;
   border: 1px dashed #b8c5d0;
   border-radius: 6px;
   display: grid;
@@ -141,10 +181,10 @@ body {
 
 .paper-output button {
   width: 100%;
-  margin-top: 12px;
+  margin-top: 8px;
   border: 1px solid #98a9b8;
   border-radius: 6px;
-  padding: 9px 10px;
+  padding: 7px 9px;
   font: inherit;
   color: #ffffff;
   background: #2f6f9f;
@@ -158,11 +198,11 @@ body {
 }
 
 .export-status {
-  min-height: 18px;
-  margin: 8px 0 0;
+  min-height: 16px;
+  margin: 5px 0 0;
   color: #586776;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.35;
 }
 
 #scene {
