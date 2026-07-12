@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.agents
+.obsidian
+tmp/
+.codewhale/
