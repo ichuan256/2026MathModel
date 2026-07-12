@@ -34,21 +34,132 @@ FEATURE_WEIGHTS = np.asarray([1.0, 1.0, 1.6], dtype=float)
 
 ZONE_NAMES = ["极浅水区", "浅水区", "中等水深区", "深水区", "极深水区"]
 ZONE_COLORS = [
-    (232, 244, 198),
-    (164, 215, 192),
-    (93, 180, 190),
-    (53, 121, 170),
-    (30, 61, 119),
-    (89, 55, 127),
-    (140, 69, 112),
-    (184, 92, 87),
-    (207, 134, 82),
-    (221, 181, 96),
+    (246, 225, 202),
+    (221, 211, 238),
+    (204, 226, 207),
+    (237, 207, 214),
+    (214, 224, 235),
+    (238, 226, 173),
+    (224, 205, 188),
+    (213, 216, 198),
+    (232, 213, 231),
+    (210, 225, 218),
 ]
+
+FEATURE_WEIGHTS = np.asarray([1.0, 1.0, 1.6], dtype=float)
 
 
 def color_hex(color: tuple[int, int, int]) -> str:
     return "#{:02x}{:02x}{:02x}".format(*color)
+
+
+def smooth_label_probabilities(labels: np.ndarray, cluster_count: int, iterations: int = 5) -> np.ndarray:
+    """Smooth one probability field per class to avoid fake intermediate labels."""
+    valid_mask = labels >= 0
+    if not np.any(valid_mask):
+        return np.zeros((cluster_count, *labels.shape), dtype=float)
+
+    fields = np.zeros((cluster_count, *labels.shape), dtype=float)
+    for cluster_id in range(cluster_count):
+        fields[cluster_id] = (labels == cluster_id).astype(float)
+
+    kernel = np.asarray(
+        [
+            [1.0, 2.0, 1.0],
+            [2.0, 4.0, 2.0],
+            [1.0, 2.0, 1.0],
+        ],
+        dtype=float,
+    )
+    kernel /= kernel.sum()
+
+    for _ in range(iterations):
+        padded = np.pad(fields, ((0, 0), (1, 1), (1, 1)), mode="edge")
+        smoothed = np.zeros_like(fields)
+        for row in range(3):
+            for col in range(3):
+                smoothed += kernel[row, col] * padded[:, row : row + labels.shape[0], col : col + labels.shape[1]]
+        fields = smoothed
+
+    fields[:, ~valid_mask] = 0.0
+    weights = fields.sum(axis=0, keepdims=True)
+    return fields / np.maximum(weights, 1e-12)
+
+
+def smooth_label_field(labels: np.ndarray, cluster_count: int, iterations: int = 5) -> np.ndarray:
+    """Return a display-only class map after probability smoothing."""
+    probabilities = smooth_label_probabilities(labels, cluster_count, iterations)
+    smooth_labels = np.argmax(probabilities, axis=0).astype(float)
+    smooth_labels[labels < 0] = np.nan
+    return smooth_labels
+
+
+def densify_field(
+    x: np.ndarray,
+    y: np.ndarray,
+    field: np.ndarray,
+    factor: int = 6,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Bilinearly densify a gridded field using only numpy interpolation."""
+    x_dense = np.linspace(float(x.min()), float(x.max()), max(len(x) * factor, len(x)))
+    y_dense = np.linspace(float(y.min()), float(y.max()), max(len(y) * factor, len(y)))
+    row_interp = np.vstack([np.interp(x_dense, x, row) for row in field])
+    dense = np.vstack([np.interp(y_dense, y, row_interp[:, col]) for col in range(row_interp.shape[1])]).T
+    x_grid, y_grid = np.meshgrid(x_dense, y_dense)
+    return x_grid, y_grid, dense
+
+
+def densify_probability_fields(
+    x: np.ndarray,
+    y: np.ndarray,
+    fields: np.ndarray,
+    factor: int = 6,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    dense_fields = []
+    x_grid = y_grid = None
+    for field in fields:
+        x_grid, y_grid, dense = densify_field(x, y, field, factor=factor)
+        dense_fields.append(dense)
+    dense_stack = np.stack(dense_fields, axis=0)
+    weights = dense_stack.sum(axis=0, keepdims=True)
+    dense_stack = dense_stack / np.maximum(weights, 1e-12)
+    return x_grid, y_grid, dense_stack
+
+
+def interpolate_depth_to_dense_grid(
+    x: np.ndarray,
+    y: np.ndarray,
+    depth: np.ndarray,
+    factor: int = 12,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    x_dense = np.linspace(float(x.min()), float(x.max()), max(len(x) * factor, len(x)))
+    y_dense = np.linspace(float(y.min()), float(y.max()), max(len(y) * factor, len(y)))
+    row_interp = np.vstack([np.interp(x_dense, x, row) for row in depth])
+    dense_depth = np.vstack([np.interp(y_dense, y, row_interp[:, col]) for col in range(row_interp.shape[1])]).T
+    x_grid, y_grid = np.meshgrid(x_dense, y_dense)
+    return x_grid, y_grid, dense_depth
+
+
+def dense_kmeans_label_field(
+    x: np.ndarray,
+    y: np.ndarray,
+    depth: np.ndarray,
+    centers: np.ndarray,
+    factor: int = 12,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Re-classify a dense continuous grid from the K-means centers for smoother boundaries."""
+    features, raw_features, _ = build_feature_matrix(x, y, depth)
+    means = raw_features.mean(axis=0)
+    scales = raw_features.std(axis=0)
+    scales[scales < 1e-12] = 1.0
+    feature_centers = (centers - means) / scales * FEATURE_WEIGHTS
+
+    x_grid, y_grid, dense_depth = interpolate_depth_to_dense_grid(x, y, depth, factor=factor)
+    dense_raw = np.column_stack([x_grid.ravel(), y_grid.ravel(), dense_depth.ravel()])
+    dense_features = (dense_raw - means) / scales * FEATURE_WEIGHTS
+    distances = np.linalg.norm(dense_features[:, None, :] - feature_centers[None, :, :], axis=2)
+    dense_labels = np.argmin(distances, axis=1).reshape(dense_depth.shape).astype(float)
+    return x_grid, y_grid, dense_depth, dense_labels
 
 
 def build_feature_matrix(x: np.ndarray, y: np.ndarray, depth: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -163,14 +274,22 @@ def export_cluster_points(x: np.ndarray, y: np.ndarray, depth: np.ndarray, label
                     writer.writerow([round(float(x_value), 6), round(float(y_value), 6), round(float(depth[i, j]), 4), cluster, zone_names[int(labels[i, j])]])
 
 
-def draw_kmeans_figures(x: np.ndarray, y: np.ndarray, depth: np.ndarray, labels: np.ndarray, ranges: list[dict]) -> None:
+def draw_kmeans_figures(
+    x: np.ndarray,
+    y: np.ndarray,
+    depth: np.ndarray,
+    labels: np.ndarray,
+    centers: np.ndarray,
+    ranges: list[dict],
+) -> None:
     if not HAS_MATPLOTLIB:
         raise ImportError("matplotlib is required for smooth K-means PNG/SVG output.")
 
     print("[4/6] 绘制横向拉伸版三维 K-means 分区 PNG/SVG...", flush=True)
     setup_matplotlib()
     x_grid, y_grid = np.meshgrid(x, y)
-    masked_labels = np.ma.masked_less(labels.astype(float), 0)
+    smooth_x_grid, smooth_y_grid, _, dense_labels = dense_kmeans_label_field(x, y, depth, centers, factor=14)
+    masked_labels = np.ma.masked_invalid(dense_labels)
     levels = np.arange(-0.5, len(ranges) + 0.5, 1.0)
     colors = [color_hex(ZONE_COLORS[i]) for i in range(len(ranges))]
     cmap = ListedColormap(colors)
@@ -180,9 +299,9 @@ def draw_kmeans_figures(x: np.ndarray, y: np.ndarray, depth: np.ndarray, labels:
     panel = fig.add_axes([0.825, 0.20, 0.15, 0.60])
     panel.set_axis_off()
 
-    ax.contourf(x_grid, y_grid, masked_labels, levels=levels, cmap=cmap, alpha=0.94)
+    ax.contourf(smooth_x_grid, smooth_y_grid, masked_labels, levels=levels, cmap=cmap, alpha=0.94)
     if len(ranges) > 1:
-        ax.contour(x_grid, y_grid, masked_labels, levels=np.arange(0.5, len(ranges), 1.0), colors="#152336", linewidths=0.65, alpha=0.9)
+        ax.contour(smooth_x_grid, smooth_y_grid, masked_labels, levels=np.arange(0.5, len(ranges), 1.0), colors="#152336", linewidths=0.65, alpha=0.9)
     ax.contour(x_grid, y_grid, depth, levels=8, colors="#ffffff", linewidths=0.35, alpha=0.45)
 
     ax.set_title("K-means 三维特征分区图（x、y、水深）", fontsize=18, pad=14, fontweight="bold")
@@ -218,7 +337,7 @@ def main() -> None:
     labels, centers, iterations, _ = kmeans_xyz(x, y, depth, selected_k)
     ranges = cluster_ranges(depth, labels, centers)
     export_cluster_points(x, y, depth, labels, ranges)
-    draw_kmeans_figures(x, y, depth, labels, ranges)
+    draw_kmeans_figures(x, y, depth, labels, centers, ranges)
 
     print("[6/6] 完成。", flush=True)
     print("selected_k:", selected_k)

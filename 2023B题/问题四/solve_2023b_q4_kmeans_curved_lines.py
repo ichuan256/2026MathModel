@@ -10,13 +10,20 @@ import numpy as np
 try:
     import matplotlib.pyplot as plt
     from matplotlib.colors import ListedColormap
+    from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
 
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
 
-from kmeans_depth_classification import ZONE_COLORS, cluster_ranges, elbow_analysis, kmeans_xyz
+from kmeans_depth_classification import (
+    ZONE_COLORS,
+    cluster_ranges,
+    dense_kmeans_label_field,
+    elbow_analysis,
+    kmeans_xyz,
+)
 from make_contour_from_attachment import marching_segments, read_bathymetry_grid, setup_matplotlib
 
 
@@ -39,6 +46,13 @@ CONVERGENCE_PATIENCE = 1000
 ETA_MIN = 0.02
 ETA_MAX = 0.199
 SEED = 2023
+
+COVERAGE_COLOR = "#0066ff"
+OVERLAP_COLOR = "#ff7a00"
+SURVEY_LINE_COLOR = "#ffffff"
+SECONDARY_LINE_COLOR = "#f8fafc"
+SURVEY_HALO_COLOR = "#082f49"
+OVERLAP_HALO_COLOR = "#7c2d12"
 
 
 def color_hex(color: tuple[int, int, int]) -> str:
@@ -147,7 +161,11 @@ def build_layout_from_eta(
             )
 
         for previous, current in zip(lanes, lanes[1:]):
-            overlap = current["deep_edge"] - previous["shallow_edge"]
+            overlap_low = max(previous["shallow_edge"], current["shallow_edge"])
+            overlap_high = min(previous["deep_edge"], current["deep_edge"])
+            overlap = overlap_high - overlap_low
+            if overlap <= 0:
+                continue
             base = min(previous["width_depth"], current["width_depth"])
             rate = overlap / max(base, 1e-12)
             if rate > 0.20:
@@ -261,6 +279,7 @@ def draw_layout(
     y: np.ndarray,
     depth: np.ndarray,
     labels: np.ndarray,
+    centers: np.ndarray,
     ranges: list[dict],
     lanes: list[dict],
     summary: dict,
@@ -272,7 +291,8 @@ def draw_layout(
     print("[6/8] 绘制横向拉伸版曲线测线 PNG/SVG...", flush=True)
     setup_matplotlib()
     x_grid, y_grid = np.meshgrid(x, y)
-    masked_labels = np.ma.masked_less(labels.astype(float), 0)
+    smooth_x_grid, smooth_y_grid, dense_depth, dense_labels = dense_kmeans_label_field(x, y, depth, centers, factor=6)
+    masked_labels = np.ma.masked_invalid(dense_labels)
     label_levels = np.arange(-0.5, len(ranges) + 0.5, 1.0)
     colors = [color_hex(ZONE_COLORS[i]) for i in range(len(ranges))]
     cmap = ListedColormap(colors)
@@ -282,42 +302,131 @@ def draw_layout(
     panel = fig.add_axes([0.825, 0.18, 0.15, 0.66])
     panel.set_axis_off()
 
-    ax.contourf(x_grid, y_grid, masked_labels, levels=label_levels, cmap=cmap, alpha=0.78)
+    ax.contourf(smooth_x_grid, smooth_y_grid, masked_labels, levels=label_levels, cmap=cmap, alpha=0.78)
     if len(ranges) > 1:
-        ax.contour(x_grid, y_grid, masked_labels, levels=np.arange(0.5, len(ranges), 1.0), colors="#132438", linewidths=0.65, alpha=0.9)
+        ax.contour(smooth_x_grid, smooth_y_grid, masked_labels, levels=np.arange(0.5, len(ranges), 1.0), colors="#132438", linewidths=0.65, alpha=0.9)
     ax.contour(x_grid, y_grid, depth, levels=8, colors="#ffffff", linewidths=0.34, alpha=0.36)
 
-    depth_span = max(float(np.nanmax(depth) - np.nanmin(depth)), 1e-12)
-    depth_to_px = 680 / depth_span
-
-    def plot_region_contour_segments(level: float, cluster_idx: int, color: str, line_width: float, alpha: float) -> None:
+    def plot_region_contour_segments(
+        level: float,
+        cluster_idx: int,
+        color: str,
+        line_width: float,
+        alpha: float,
+        zorder: float,
+        halo_color: str | None = None,
+        halo_width: float = 0.0,
+        halo_alpha: float = 0.0,
+    ) -> None:
         for p1, p2 in marching_segments(x, y, depth, float(level)):
             midpoint = ((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2)
             if cluster_at_point(labels, x, y, midpoint) == cluster_idx:
-                ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color=color, linewidth=line_width, alpha=alpha, solid_capstyle="round")
+                if halo_color is not None and halo_width > line_width:
+                    ax.plot(
+                        [p1[0], p2[0]],
+                        [p1[1], p2[1]],
+                        color=halo_color,
+                        linewidth=halo_width,
+                        alpha=halo_alpha,
+                        solid_capstyle="round",
+                        zorder=zorder - 0.05,
+                    )
+                ax.plot(
+                    [p1[0], p2[0]],
+                    [p1[1], p2[1]],
+                    color=color,
+                    linewidth=line_width,
+                    alpha=alpha,
+                    solid_capstyle="round",
+                    zorder=zorder,
+                )
+
+    coverage_count = np.zeros(dense_depth.shape, dtype=np.uint16)
+    for lane in lanes:
+        cluster_idx = int(lane["cluster"]) - 1
+        low = min(lane["shallow_edge"], lane["deep_edge"])
+        high = max(lane["shallow_edge"], lane["deep_edge"])
+        covered = (dense_labels == cluster_idx) & (dense_depth >= low) & (dense_depth <= high)
+        coverage_count[covered] += 1
+
+    covered_field = np.where(coverage_count >= 1, 1.0, np.nan)
+    overlap_field = np.where(coverage_count >= 2, 1.0, np.nan)
+    if np.any(coverage_count >= 1):
+        ax.contourf(
+            smooth_x_grid,
+            smooth_y_grid,
+            covered_field,
+            levels=[0.5, 1.5],
+            colors=[COVERAGE_COLOR],
+            alpha=0.56,
+            antialiased=True,
+            zorder=3.0,
+        )
+    if np.any(coverage_count >= 2):
+        ax.contourf(
+            smooth_x_grid,
+            smooth_y_grid,
+            overlap_field,
+            levels=[0.5, 1.5],
+            colors=[OVERLAP_COLOR],
+            alpha=0.76,
+            antialiased=True,
+            zorder=4.0,
+        )
+
+    lanes_by_cluster: dict[int, list[dict]] = {}
+    for lane in lanes:
+        lanes_by_cluster.setdefault(int(lane["cluster"]) - 1, []).append(lane)
+
+    for cluster_idx, cluster_lanes in lanes_by_cluster.items():
+        ordered_lanes = sorted(cluster_lanes, key=lambda row: int(row["lane_index"]))
+        for previous, current in zip(ordered_lanes, ordered_lanes[1:]):
+            overlap_low = max(
+                min(previous["shallow_edge"], previous["deep_edge"]),
+                min(current["shallow_edge"], current["deep_edge"]),
+            )
+            overlap_high = min(
+                max(previous["shallow_edge"], previous["deep_edge"]),
+                max(current["shallow_edge"], current["deep_edge"]),
+            )
+            if overlap_high <= overlap_low:
+                continue
+            overlap_center = (overlap_low + overlap_high) / 2.0
+            overlap_rate = (overlap_high - overlap_low) / max(
+                min(
+                    abs(previous["deep_edge"] - previous["shallow_edge"]),
+                    abs(current["deep_edge"] - current["shallow_edge"]),
+                ),
+                1e-12,
+            )
+            overlap_width = float(np.clip(1.85 + overlap_rate * 2.4, 2.05, 3.25))
+            plot_region_contour_segments(
+                overlap_center,
+                cluster_idx,
+                OVERLAP_COLOR,
+                overlap_width,
+                0.98,
+                4.8,
+                halo_color=OVERLAP_HALO_COLOR,
+                halo_width=overlap_width + 1.0,
+                halo_alpha=0.30,
+            )
 
     for lane in lanes:
         cluster_idx = int(lane["cluster"]) - 1
-        width_depth = lane["deep_edge"] - lane["shallow_edge"]
-        line_width = float(np.clip(width_depth * depth_to_px * 0.34, 4.0, 12.0))
-        plot_region_contour_segments(float(lane["center_depth"]), cluster_idx, "#bde6e8", line_width, 0.42)
-
-    for previous, current in zip(lanes, lanes[1:]):
-        if previous["cluster"] != current["cluster"]:
-            continue
-        overlap_depth = current["deep_edge"] - previous["shallow_edge"]
-        if overlap_depth <= 0:
-            continue
-        cluster_idx = int(current["cluster"]) - 1
-        overlap_level = (current["deep_edge"] + previous["shallow_edge"]) / 2
-        line_width = float(np.clip(overlap_depth * depth_to_px * 0.62, 3.0, 12.0))
-        plot_region_contour_segments(float(overlap_level), cluster_idx, "#e75e36", line_width, 0.72)
-
-    for lane in lanes:
-        cluster_idx = int(lane["cluster"]) - 1
-        stroke = "#ffffff" if lane["lane_index"] == 1 else "#fff2a8"
-        width = 0.95 if lane["lane_index"] == 1 else 0.65
-        plot_region_contour_segments(float(lane["center_depth"]), cluster_idx, stroke, width, 0.98)
+        stroke = SURVEY_LINE_COLOR if lane["lane_index"] == 1 else SECONDARY_LINE_COLOR
+        width = 1.70 if lane["lane_index"] == 1 else 1.35
+        plot_region_contour_segments(
+            float(lane["center_depth"]),
+            cluster_idx,
+            stroke,
+            width,
+            1.0,
+            5.2,
+            halo_color=SURVEY_HALO_COLOR,
+            halo_width=width + 0.95,
+            halo_alpha=0.52,
+        )
 
     ax.set_title("问题四：三维 K-means 分区曲线测线布设结果", fontsize=18, pad=14, fontweight="bold")
     ax.set_xlabel("东西方向 / n mile", fontsize=13, fontweight="bold")
@@ -342,9 +451,10 @@ def draw_layout(
 
     panel.text(0.07, 0.50, "颜色说明", fontsize=13, fontweight="bold", color="#1e293b")
     legend_items = [
-        Patch(facecolor="#bde6e8", edgecolor="#64748b", label="浅青色：测线覆盖区域", alpha=0.55),
-        Patch(facecolor="#e75e36", edgecolor="#64748b", label="红橙色：重叠覆盖区域", alpha=0.75),
-        Patch(facecolor="#ffffff", edgecolor="#64748b", label="白色：实际测线"),
+        Patch(facecolor=COVERAGE_COLOR, edgecolor="#64748b", label="蓝色：测线覆盖区域", alpha=0.56),
+        Patch(facecolor=OVERLAP_COLOR, edgecolor="#64748b", label="橙色：重叠覆盖区域", alpha=0.76),
+        Line2D([0], [0], color=OVERLAP_COLOR, linewidth=2.6, label="橙色线：重叠中心带"),
+        Line2D([0], [0], color=SURVEY_LINE_COLOR, linewidth=2.0, label="白色线：实际测线"),
     ]
     panel.legend(handles=legend_items, loc="upper left", bbox_to_anchor=(0.05, 0.48), frameon=False, fontsize=8.8)
 
@@ -425,7 +535,7 @@ def main() -> None:
     etas, lanes, summary, iterations_used, stable_count = optimize_etas(ranges, gradients, levels, lengths)
     print("[5/8] 生成最终曲线测线几何...", flush=True)
     lanes, summary = build_layout_from_eta(etas, ranges, gradients, levels, lengths)
-    draw_layout(x, y, depth, labels, ranges, lanes, summary, iterations_used)
+    draw_layout(x, y, depth, labels, centers, ranges, lanes, summary, iterations_used)
     save_outputs(lanes, summary, etas, iterations_used, stable_count)
 
     print("[8/8] 完成。", flush=True)
