@@ -1,0 +1,11 @@
+﻿metric,value
+total_length_nm,220.26818
+line_count,59
+uncovered_ratio_percent,0.0
+overlap_excess_length_nm,0.0
+iterations_used,11000
+stable_count,1000
+region_1_eta,0.02
+region_2_eta,0.03410478
+region_3_eta,0.02
+region_4_eta,0.10254369
