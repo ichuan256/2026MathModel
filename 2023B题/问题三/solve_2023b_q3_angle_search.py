@@ -649,7 +649,7 @@ def draw_svg(phi_deg: float, total_length_nm: float, lines: list[dict[str, float
     for index, line in enumerate(lines, start=1):
         p1 = world_to_pixel(line["x1"] / NM, line["y1"] / NM)
         p2 = world_to_pixel(line["x2"] / NM, line["y2"] / NM)
-        parts.append(f'<line class="thin" x1="{p1[0]:.2f}" y1="{p1[1]:.2f}" x2="{p2[0]:.2f}" y2="{p2[1]:.2f}" stroke="#fff7ed" stroke-width="2.5" stroke-linecap="round" opacity="0.96"/>')
+        parts.append(f'<line class="thin" x1="{p1[0]:.2f}" y1="{p1[1]:.2f}" x2="{p2[0]:.2f}" y2="{p2[1]:.2f}" stroke="#fff7ed" stroke-width="1.6" stroke-linecap="round" opacity="0.96"/>')
         if index == 1 or index == len(lines) or index % 5 == 0:
             mx, my = world_to_pixel((line["x1"] + line["x2"]) / (2 * NM), (line["y1"] + line["y2"]) / (2 * NM))
             parts.append(f'<rect class="thin" x="{mx - 13:.2f}" y="{my - 11:.2f}" width="26" height="22" rx="5" fill="#ffffff" opacity="0.86" stroke="#94a3b8" stroke-width="1"/>')
@@ -730,7 +730,7 @@ def save_plot(phi_deg: float, total_length_nm: float, lines: list[dict[str, floa
         x2, y2 = line["x2"] / NM, line["y2"] / NM
         p1 = world_to_pixel(x1, y1)
         p2 = world_to_pixel(x2, y2)
-        draw.line((p1, p2), fill=(247, 243, 232, 245), width=3)
+        draw.line((p1, p2), fill=(247, 243, 232, 245), width=2)
         if index == 1 or index == len(lines) or index % 5 == 0:
             pm = world_to_pixel((x1 + x2) / 2, (y1 + y2) / 2)
             label = str(index)

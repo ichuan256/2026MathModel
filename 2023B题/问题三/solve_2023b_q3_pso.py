@@ -654,7 +654,7 @@ def draw_png(phi_deg: float, phi_span_deg: float, eta_target: float, lines: list
     for index, line in enumerate(lines, start=1):
         p1 = world_to_pixel(line["x1"] / NM, line["y1"] / NM)
         p2 = world_to_pixel(line["x2"] / NM, line["y2"] / NM)
-        draw.line((*p1, *p2), fill=(255, 255, 255, 245), width=2)
+        draw.line((*p1, *p2), fill=(255, 255, 255, 245), width=1)
         if index == 1 or index == len(lines) or index % 5 == 0:
             center = world_to_pixel((line["x1"] + line["x2"]) / (2 * NM), (line["y1"] + line["y2"]) / (2 * NM))
             box = place_label(occupied, center, str(index), small_font, draw)
@@ -711,7 +711,7 @@ def draw_svg(phi_deg: float, phi_span_deg: float, eta_target: float, lines: list
     for index, line in enumerate(lines, start=1):
         p1 = world_to_pixel(line["x1"] / NM, line["y1"] / NM)
         p2 = world_to_pixel(line["x2"] / NM, line["y2"] / NM)
-        parts.append(f'<line class="thin" x1="{p1[0]:.2f}" y1="{p1[1]:.2f}" x2="{p2[0]:.2f}" y2="{p2[1]:.2f}" stroke="#ffffff" stroke-width="2" stroke-linecap="round"/>')
+        parts.append(f'<line class="thin" x1="{p1[0]:.2f}" y1="{p1[1]:.2f}" x2="{p2[0]:.2f}" y2="{p2[1]:.2f}" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round"/>')
         if index == 1 or index == len(lines) or index % 5 == 0:
             center = world_to_pixel((line["x1"] + line["x2"]) / (2 * NM), (line["y1"] + line["y2"]) / (2 * NM))
             box = place_label(occupied, center, str(index), small_font, fake_draw)
