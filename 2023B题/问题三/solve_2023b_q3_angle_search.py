@@ -587,8 +587,8 @@ def draw_info_panel(
 
 
 def world_to_pixel(x_nm: float, y_nm: float) -> tuple[float, float]:
-    plot_left, plot_top = 84, 126
-    plot_w, plot_h = 940, 470
+    plot_left, plot_top = 84, 56
+    plot_w, plot_h = 1080, 540
     px = plot_left + (x_nm - (-2.08)) / 4.16 * plot_w
     py = plot_top + (1.08 - y_nm) / 2.16 * plot_h
     return px, py
@@ -602,26 +602,18 @@ def draw_svg(phi_deg: float, total_length_nm: float, lines: list[dict[str, float
     print("[绘图] 生成角度搜索 SVG 矢量图...", flush=True)
     phi = math.radians(phi_deg)
     normal = (-math.sin(phi), math.cos(phi))
-    plot_left, plot_top = 84, 126
-    plot_w, plot_h = 940, 470
+    plot_left, plot_top = 84, 56
+    plot_w, plot_h = 1080, 540
     min_depth = depth_at_x(X_MAX)
     max_depth = depth_at_x(X_MIN)
     overlap_rates = [
         (b["right"] - a["left"]) / min(a["width"], b["width"]) * 100
         for a, b in zip(lines, lines[1:])
     ]
-    summary = (
-        f"最优方向角：{phi_deg:.6f}°\n"
-        f"测线数量：{len(lines)} 条\n"
-        f"测线总长：{total_length_nm:.6f} n mile\n"
-        f"重叠率范围：{min(overlap_rates):.2f}% - {max(overlap_rates):.2f}%"
-    )
-
     parts = [
-        '<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760">',
-        "<style><![CDATA[text{font-family:'Microsoft YaHei','SimHei',Arial,sans-serif}.thin{vector-effect:non-scaling-stroke}.fixed-label{font-size:14px}.title{font-size:28px;font-weight:700}.axis{font-size:17px;font-weight:700}.panel-title{font-size:20px;font-weight:700}.panel-text{font-size:16px}]]></style>",
-        '<rect width="1400" height="760" fill="#f8fafc"/>',
-        '<text x="56" y="63" class="title" fill="#0f172a">2023B问题三：方向角一维搜索 + 黄金分割精修测线布设结果</text>',
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="680" viewBox="0 0 1240 680">',
+        "<style><![CDATA[text{font-family:'Microsoft YaHei','SimHei',Arial,sans-serif}.thin{vector-effect:non-scaling-stroke}.fixed-label{font-size:14px}.axis{font-size:17px;font-weight:700}.note{font-size:15px;font-weight:700}]]></style>",
+        '<rect width="1240" height="680" fill="#ffffff"/>',
     ]
     for i in range(120):
         x_nm = -2.08 + i / 119 * 4.16
@@ -660,21 +652,14 @@ def draw_svg(phi_deg: float, total_length_nm: float, lines: list[dict[str, float
     parts.append(f'<text x="{plot_left + plot_w / 2}" y="{plot_top + plot_h + 55}" class="axis" fill="#1e293b" text-anchor="middle">东西方向 / n mile（西深，东浅）</text>')
     parts.append(f'<text x="{plot_left}" y="{plot_top - 12}" class="axis" fill="#1e293b">南北方向 / n mile</text>')
 
-    panel_x, panel_y = 1060, 126
-    parts.append(f'<rect class="thin" x="{panel_x}" y="{panel_y}" width="292" height="470" rx="10" fill="#ffffff" opacity="0.92" stroke="#b9c7ce"/>')
-    parts.append(f'<text x="{panel_x + 22}" y="{panel_y + 47}" class="panel-title" fill="#0f172a">结果摘要</text>')
-    for row_index, row in enumerate(summary.splitlines()):
-        parts.append(f'<text x="{panel_x + 22}" y="{panel_y + 82 + row_index * 26}" class="panel-text" fill="#102c3d">{html.escape(row)}</text>')
-    parts.append(f'<text x="{panel_x + 22}" y="{panel_y + 280}" class="fixed-label" fill="#475569">海水深度 / m</text>')
-    for i in range(220):
-        d = min_depth + (max_depth - min_depth) * i / 219
-        parts.append(f'<line class="thin" x1="{panel_x + 22 + i}" y1="{panel_y + 310}" x2="{panel_x + 22 + i}" y2="{panel_y + 330}" stroke="{rgb(depth_color(d, min_depth, max_depth))}" stroke-width="1"/>')
-    parts.append(f'<text x="{panel_x + 22}" y="{panel_y + 352}" class="fixed-label" fill="#475569">{min_depth:.1f}</text>')
-    parts.append(f'<text x="{panel_x + 198}" y="{panel_y + 352}" class="fixed-label" fill="#475569">{max_depth:.1f}</text>')
-    for item_index, (color, label) in enumerate([("#bde6e8", "浅青色：覆盖区域"), ("#e75e36", "红橙色：重叠覆盖区域"), ("#fff7ed", "白色：实际测线")]):
-        y0 = panel_y + 382 + item_index * 28
-        parts.append(f'<rect class="thin" x="{panel_x + 22}" y="{y0}" width="28" height="16" rx="3" fill="{color}" stroke="#64748b" stroke-width="1"/>')
-        parts.append(f'<text x="{panel_x + 62}" y="{y0 + 13}" class="fixed-label" fill="#1e293b">{html.escape(label)}</text>')
+    parts.append(f'<text x="{plot_left + 18}" y="{plot_top + 30}" class="note" fill="#ffffff">深水侧（西）</text>')
+    parts.append(f'<text x="{plot_left + plot_w - 18}" y="{plot_top + 30}" class="note" fill="#25384a" text-anchor="end">浅水侧（东）</text>')
+    lx, ly = plot_left + 390, plot_top + 16
+    parts.append(f'<rect x="{lx}" y="{ly}" width="330" height="38" rx="5" fill="#ffffff" fill-opacity="0.86" stroke="#b9c7ce"/>')
+    parts.append(f'<rect x="{lx + 16}" y="{ly + 11}" width="26" height="14" fill="#e75e36" fill-opacity="0.72"/>')
+    parts.append(f'<text x="{lx + 49}" y="{ly + 24}" class="fixed-label" fill="#263442">重叠区域</text>')
+    parts.append(f'<line x1="{lx + 142}" y1="{ly + 18}" x2="{lx + 174}" y2="{ly + 18}" stroke="#fff7ed" stroke-width="3"/>')
+    parts.append(f'<text x="{lx + 184}" y="{ly + 24}" class="fixed-label" fill="#263442">实际测线（编号）</text>')
     parts.append("</svg>")
     SVG_PATH.write_text("\n".join(parts), encoding="utf-8")
 
@@ -683,19 +668,13 @@ def save_plot(phi_deg: float, total_length_nm: float, lines: list[dict[str, floa
     phi = math.radians(phi_deg)
     normal = (-math.sin(phi), math.cos(phi))
 
-    image = Image.new("RGB", (1400, 760), (248, 250, 252))
+    image = Image.new("RGB", (1240, 680), (255, 255, 255))
     draw = ImageDraw.Draw(image, "RGBA")
-    title_font = load_font(28, bold=True)
-    panel_title_font = load_font(20, bold=True)
     label_font = load_font(17, bold=True)
     small_font = load_font(14)
-    text_font = load_font(16)
 
-    title = "2023B问题三：方向角一维搜索 + 黄金分割精修 + 解析递推测线"
-    draw.text((56, 32), title, font=title_font, fill=(15, 23, 42))
-
-    plot_left, plot_top = 84, 126
-    plot_w, plot_h = 940, 470
+    plot_left, plot_top = 84, 56
+    plot_w, plot_h = 1080, 540
     min_depth = depth_at_x(X_MAX)
     max_depth = depth_at_x(X_MIN)
     for i in range(plot_w):
@@ -747,33 +726,21 @@ def save_plot(phi_deg: float, total_length_nm: float, lines: list[dict[str, floa
     border_points = [world_to_pixel(-2, -1), world_to_pixel(2, -1), world_to_pixel(2, 1), world_to_pixel(-2, 1)]
     draw.line(border_points + [border_points[0]], fill=(16, 44, 61, 255), width=3)
 
-    overlap_rates = [
-        (b["right"] - a["left"]) / min(a["width"], b["width"]) * 100
-        for a, b in zip(lines, lines[1:])
-    ]
-    summary = (
-        f"最优方向角：{phi_deg:.6f}°\n"
-        f"测线数量：{len(lines)} 条\n"
-        f"测线总长：{total_length_nm:.6f} n mile\n"
-        f"重叠率范围：{min(overlap_rates):.2f}% - {max(overlap_rates):.2f}%"
-    )
-    draw_info_panel(
-        draw,
-        panel_x=1060,
-        panel_y=126,
-        panel_w=292,
-        title_font=panel_title_font,
-        text_font=text_font,
-        small_font=small_font,
-        summary=summary,
-        min_depth=min_depth,
-        max_depth=max_depth,
-    )
-
     draw.text((plot_left + plot_w / 2 - 120, plot_top + plot_h + 42), "东西方向 / n mile（西深，东浅）", font=label_font, fill=(30, 41, 59))
     draw.text((plot_left, plot_top - 30), "南北方向 / n mile", font=label_font, fill=(30, 41, 59))
 
-    image.save(PNG_PATH)
+    draw.text((plot_left + 18, plot_top + 13), "深水侧（西）", font=small_font, fill=(255, 255, 255))
+    deep_label = "浅水侧（东）"
+    deep_box = draw.textbbox((0, 0), deep_label, font=small_font)
+    draw.text((plot_left + plot_w - 18 - (deep_box[2] - deep_box[0]), plot_top + 13), deep_label, font=small_font, fill=(37, 56, 74))
+    legend_x, legend_y = plot_left + 390, plot_top + 16
+    draw.rounded_rectangle((legend_x, legend_y, legend_x + 330, legend_y + 38), radius=5, fill=(255, 255, 255, 220), outline=(185, 199, 206, 255))
+    draw.rectangle((legend_x + 16, legend_y + 11, legend_x + 42, legend_y + 25), fill=(231, 94, 54, 180))
+    draw.text((legend_x + 49, legend_y + 9), "重叠区域", font=small_font, fill=(38, 52, 66))
+    draw.line((legend_x + 142, legend_y + 18, legend_x + 174, legend_y + 18), fill=(247, 243, 232, 255), width=3)
+    draw.text((legend_x + 184, legend_y + 9), "实际测线（编号）", font=small_font, fill=(38, 52, 66))
+
+    image.save(PNG_PATH, dpi=(300, 300))
     draw_svg(phi_deg, total_length_nm, lines)
 
 

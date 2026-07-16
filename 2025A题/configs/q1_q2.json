@@ -1,0 +1,55 @@
+{
+  "constants": {
+    "gravity_mps2": 9.8,
+    "missile_speed_mps": 300.0,
+    "cloud_radius_m": 10.0,
+    "cloud_lifetime_s": 20.0,
+    "cloud_sink_speed_mps": 3.0,
+    "target_radius_m": 7.0,
+    "target_height_m": 10.0,
+    "target_base_center_m": [0.0, 200.0, 0.0],
+    "missile_pos0_m": [20000.0, 0.0, 2000.0],
+    "uav_pos0_m": [17800.0, 0.0, 1800.0]
+  },
+  "optimization": {
+    "random_seeds": [2025, 2026, 2027],
+    "coarse": {
+      "target_angles": 48,
+      "scan_dt_s": 0.05,
+      "population_size": 18,
+      "max_iterations": 180,
+      "tolerance": 0.0001
+    },
+    "local": {
+      "target_angles": 144,
+      "scan_dt_s": 0.01,
+      "max_iterations": 1200,
+      "x_tolerance": 1e-10,
+      "f_tolerance": 1e-10
+    },
+    "interval_refinement": {
+      "target_angles": 180,
+      "scan_dt_s": 0.01,
+      "max_iterations": 1200,
+      "x_tolerance": 1e-9,
+      "f_tolerance": 1e-10
+    },
+    "boundary_refinement": {
+      "target_angles": 720,
+      "scan_dt_s": 0.004,
+      "max_iterations": 600,
+      "x_tolerance": 1e-10,
+      "f_tolerance": 1e-11
+    }
+  },
+  "verification": {
+    "target_angles": 1440,
+    "scan_dt_s": 0.002
+  },
+  "q2_stored_strategy": {
+    "heading_deg": 176.64108554797772,
+    "uav_speed_mps": 70.0,
+    "burst_time_s": 2.4967986905283013,
+    "fuse_delay_s": 2.4967986905283013
+  }
+}

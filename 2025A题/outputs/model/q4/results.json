@@ -1,0 +1,178 @@
+{
+  "metadata": {
+    "python": "3.9.25",
+    "numpy": "2.0.2",
+    "scipy": "1.13.1",
+    "criterion": "Every target sightline is blocked by at least one active cloud before the target.",
+    "random_seeds": [
+      2025,
+      2026,
+      2027
+    ]
+  },
+  "strategy": {
+    "bombs": [
+      {
+        "uav_id": "FY1",
+        "heading_deg": 57.19602245839139,
+        "speed_mps": 85.07357511824567,
+        "drop_time_s": 0.030180408759972875,
+        "fuse_delay_s": 0.10635550990122516,
+        "burst_time_s": 0.13653591866119805,
+        "drop_pos_m": [
+          17801.391015592617,
+          2.1581046532872836,
+          1800.0
+        ],
+        "burst_pos_m": [
+          17806.292942992273,
+          9.763247534088414,
+          1799.944573677017
+        ]
+      },
+      {
+        "uav_id": "FY2",
+        "heading_deg": 288.97597941978745,
+        "speed_mps": 106.51994231457792,
+        "drop_time_s": 8.063841930031659,
+        "fuse_delay_s": 5.454122421359729,
+        "burst_time_s": 13.517964351391388,
+        "drop_pos_m": [
+          12279.309500367606,
+          587.7202172455376,
+          1400.0
+        ],
+        "burst_pos_m": [
+          12468.225431715451,
+          38.32038848166576,
+          1254.2374882028232
+        ]
+      },
+      {
+        "uav_id": "FY3",
+        "heading_deg": 99.94678940441176,
+        "speed_mps": 136.69774193825862,
+        "drop_time_s": 17.780708907243593,
+        "fuse_delay_s": 5.301937792538443,
+        "burst_time_s": 23.082646699782035,
+        "drop_pos_m": [
+          5580.156904386609,
+          -605.9523152190036,
+          700.0
+        ],
+        "burst_pos_m": [
+          5454.966059230704,
+          107.91640414957874,
+          562.2583326558577
+        ]
+      }
+    ]
+  },
+  "joint_full_target_intervals_s": [
+    [
+      3.392525763054282,
+      7.340947753358453
+    ],
+    [
+      13.560699712528663,
+      17.459345232281642
+    ],
+    [
+      26.134738503242218,
+      29.031634365395455
+    ]
+  ],
+  "joint_full_target_duration_s": 10.743963372210386,
+  "constraint_checks": {
+    "feasible": true,
+    "one_bomb_per_uav": true,
+    "uav_ids": [
+      "FY1",
+      "FY2",
+      "FY3"
+    ]
+  },
+  "optimization_diagnostics": {
+    "random_seeds": [
+      2025,
+      2026,
+      2027
+    ],
+    "selected_global_seed": 2025,
+    "baseline_strategy": {
+      "bombs": [
+        {
+          "uav_id": "FY1",
+          "heading_deg": 54.67092420497127,
+          "speed_mps": 85.04864057745787,
+          "drop_time_s": 0.030206744155892196,
+          "fuse_delay_s": 0.10618574205360254
+        },
+        {
+          "uav_id": "FY2",
+          "heading_deg": 289.0139989029889,
+          "speed_mps": 106.49013737397617,
+          "drop_time_s": 8.064132549476541,
+          "fuse_delay_s": 5.464197502384746
+        },
+        {
+          "uav_id": "FY3",
+          "heading_deg": 99.86465533543921,
+          "speed_mps": 136.7091284297101,
+          "drop_time_s": 17.780402774709838,
+          "fuse_delay_s": 5.286584767631561
+        }
+      ]
+    },
+    "baseline_runs": [
+      {
+        "uav_id": "FY1",
+        "success": true,
+        "iterations": 22,
+        "function_evaluations": 920,
+        "objective": -104.00040952054795
+      },
+      {
+        "uav_id": "FY2",
+        "success": true,
+        "iterations": 46,
+        "function_evaluations": 1880,
+        "objective": -103.9504198630137
+      },
+      {
+        "uav_id": "FY3",
+        "success": true,
+        "iterations": 35,
+        "function_evaluations": 1440,
+        "objective": -103.00051465753425
+      }
+    ],
+    "baseline_coarse_objective": -110.78390596614074,
+    "global_runs": [
+      {
+        "seed": 2025,
+        "success": false,
+        "iterations": 140,
+        "function_evaluations": 16920,
+        "objective": -110.78390596614074
+      },
+      {
+        "seed": 2026,
+        "success": false,
+        "iterations": 140,
+        "function_evaluations": 16920,
+        "objective": -110.78390596614074
+      },
+      {
+        "seed": 2027,
+        "success": false,
+        "iterations": 140,
+        "function_evaluations": 16920,
+        "objective": -110.78390596614074
+      }
+    ],
+    "local_success": true,
+    "local_message": "Optimization terminated successfully.",
+    "local_iterations": 1376
+  }
+}

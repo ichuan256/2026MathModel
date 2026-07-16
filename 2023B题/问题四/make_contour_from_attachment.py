@@ -5,7 +5,10 @@ import math
 from pathlib import Path
 
 import numpy as np
-import openpyxl
+try:
+    import openpyxl
+except ImportError:
+    openpyxl = None
 
 try:
     import matplotlib.pyplot as plt
@@ -65,6 +68,22 @@ def find_y_value(row: list, first_x_col: int) -> float | None:
 
 def read_bathymetry_grid() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     print("[1/4] 读取附件并识别测深网格...", flush=True)
+    if openpyxl is None:
+        if not POINTS_CSV_PATH.exists():
+            raise FileNotFoundError(f"Neither openpyxl nor cached point data is available: {POINTS_CSV_PATH}")
+        rows = []
+        with POINTS_CSV_PATH.open("r", encoding="utf-8-sig", newline="") as file:
+            for row in csv.DictReader(file):
+                rows.append((float(row["x_nm"]), float(row["y_nm"]), float(row["depth_m"])))
+        x = np.unique(np.asarray([row[0] for row in rows], dtype=float))
+        y = np.unique(np.asarray([row[1] for row in rows], dtype=float))
+        depth = np.full((len(y), len(x)), np.nan, dtype=float)
+        x_index = {value: index for index, value in enumerate(x)}
+        y_index = {value: index for index, value in enumerate(y)}
+        for x_value, y_value, z_value in rows:
+            depth[y_index[y_value], x_index[x_value]] = z_value
+        print(f"    使用缓存 CSV；x节点={len(x)}, y节点={len(y)}, 有效测深点={np.isfinite(depth).sum()}", flush=True)
+        return x, y, depth
     if not WORKBOOK_PATH.exists():
         raise FileNotFoundError(f"Workbook not found: {WORKBOOK_PATH}")
 
@@ -190,10 +209,8 @@ def plot_contour(x: np.ndarray, y: np.ndarray, depth: np.ndarray) -> None:
     levels = nice_levels(depth)
     z_min, z_max = float(np.nanmin(depth)), float(np.nanmax(depth))
 
-    fig = plt.figure(figsize=(20.5, 9.5), facecolor="#f7fafc")
-    ax = fig.add_axes([0.055, 0.13, 0.74, 0.76])
-    panel = fig.add_axes([0.825, 0.42, 0.15, 0.34])
-    panel.set_axis_off()
+    fig = plt.figure(figsize=(12.6, 7.0), facecolor="white")
+    ax = fig.add_axes([0.075, 0.12, 0.82, 0.82])
 
     filled = ax.contourf(x_grid, y_grid, depth, levels=levels, cmap="YlGnBu", extend="both")
     contour = ax.contour(x_grid, y_grid, depth, levels=levels, colors="#18384a", linewidths=0.42, alpha=0.84)
@@ -202,24 +219,13 @@ def plot_contour(x: np.ndarray, y: np.ndarray, depth: np.ndarray) -> None:
 
     colorbar = fig.colorbar(filled, ax=ax, pad=0.014, shrink=0.94)
     colorbar.set_label("海水深度 / m")
-    ax.set_title("离散测深点生成等深线图", fontsize=18, pad=14, fontweight="bold")
     ax.set_xlabel("东西方向 / n mile", fontsize=13, fontweight="bold")
     ax.set_ylabel("南北方向 / n mile", fontsize=13, fontweight="bold")
     ax.set_aspect("auto")
     ax.grid(color="white", linewidth=0.55, alpha=0.42)
 
-    panel.set_xlim(0, 1)
-    panel.set_ylim(0, 1)
-    panel.add_patch(plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor="#b9c7ce", alpha=0.94))
-    panel.text(0.08, 0.88, "结果摘要", fontsize=15, fontweight="bold", color="#0f172a")
-    panel.text(0.08, 0.72, "数据来源：附件.xlsx", fontsize=11, color="#102c3d")
-    panel.text(0.08, 0.60, f"有效测深点：{np.isfinite(depth).sum()}", fontsize=11, color="#102c3d")
-    panel.text(0.08, 0.48, f"水深范围：{z_min:.2f} - {z_max:.2f} m", fontsize=11, color="#102c3d")
-    panel.text(0.08, 0.36, "等深线间隔：10 m", fontsize=11, color="#102c3d")
-    panel.text(0.08, 0.18, "色带：海水深度", fontsize=10, color="#475569")
-
-    fig.savefig(CONTOUR_PNG_PATH, dpi=240, bbox_inches="tight", facecolor="#f7fafc")
-    fig.savefig(CONTOUR_SVG_PATH, format="svg", bbox_inches="tight", facecolor="#f7fafc")
+    fig.savefig(CONTOUR_PNG_PATH, dpi=300, bbox_inches="tight", facecolor="white")
+    fig.savefig(CONTOUR_SVG_PATH, format="svg", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 

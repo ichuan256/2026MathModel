@@ -79,76 +79,66 @@ def draw_centered(
 
 
 def map_point(distance: float, value: float, value_min: float, value_max: float) -> tuple[float, float]:
-    left, top, plot_w, plot_h = 95, 130, 760, 390
+    left, top, plot_w, plot_h = 95, 72, 840, 438
     x = left + (distance - min(DISTANCES)) / (max(DISTANCES) - min(DISTANCES)) * plot_w
     y = top + (value_max - value) / max(value_max - value_min, 1e-12) * plot_h
     return x, y
 
 
 def draw_png(depths: list[float], widths: list[float], overlaps: list[float | str]) -> None:
-    image = Image.new("RGB", (1120, 690), (248, 250, 252))
+    image = Image.new("RGB", (1000, 620), (255, 255, 255))
     draw = ImageDraw.Draw(image, "RGBA")
-    title_font = load_font(28, True)
-    label_font = load_font(17, True)
+    label_font = load_font(18, True)
     text_font = load_font(15)
-    small_font = load_font(13)
+    small_font = load_font(14)
 
-    left, top, plot_w, plot_h = 95, 130, 760, 390
+    left, top, plot_w, plot_h = 95, 72, 840, 438
     right, bottom = left + plot_w, top + plot_h
-    value_min = min(depths + widths) * 0.90
-    value_max = max(depths + widths) * 1.06
+    value_min, value_max = 40.0, 340.0
+    depth_color = (49, 91, 145, 255)
+    width_color = (200, 88, 35, 255)
 
-    draw.text((54, 36), "问题一：多波束覆盖宽度与重叠率计算结果", font=title_font, fill=(15, 23, 42))
-    for i in range(6):
-        y = top + i / 5 * plot_h
-        value = value_max - i / 5 * (value_max - value_min)
-        draw.line((left, y, right, y), fill=(203, 213, 225, 180), width=1)
-        draw.text((30, y - 8), f"{value:.0f}", font=small_font, fill=(71, 85, 105))
+    for value in [40, 100, 160, 220, 280, 340]:
+        _, y = map_point(0, value, value_min, value_max)
+        draw.line((left, y, right, y), fill=(210, 214, 220, 190), width=1)
+        bbox = draw.textbbox((0, 0), str(value), font=small_font)
+        draw.text((left - 14 - (bbox[2] - bbox[0]), y - 8), str(value), font=small_font, fill=(70, 75, 82))
     for distance in DISTANCES:
         x, _ = map_point(distance, value_min, value_min, value_max)
-        draw.line((x, top, x, bottom), fill=(226, 232, 240, 150), width=1)
-        draw_centered(draw, (x, bottom + 18), str(distance), small_font, (71, 85, 105))
+        draw_centered(draw, (x, bottom + 22), str(distance), small_font, (70, 75, 82))
 
     depth_points = [map_point(d, z, value_min, value_max) for d, z in zip(DISTANCES, depths)]
     width_points = [map_point(d, w, value_min, value_max) for d, w in zip(DISTANCES, widths)]
-    draw.line(depth_points, fill=(37, 99, 235, 255), width=3)
-    draw.line(width_points, fill=(15, 118, 110, 255), width=3)
+    draw.line(depth_points, fill=depth_color, width=4)
+    draw.line(width_points, fill=width_color, width=4)
     for point, value in zip(depth_points, depths):
-        draw.ellipse((point[0] - 4, point[1] - 4, point[0] + 4, point[1] + 4), fill=(37, 99, 235, 255))
-        draw_centered(draw, (point[0], point[1] - 18), f"{value:.1f}", small_font, (30, 64, 175))
+        draw.ellipse((point[0] - 5, point[1] - 5, point[0] + 5, point[1] + 5), fill=depth_color, outline=(255, 255, 255, 255), width=1)
+        draw_centered(draw, (point[0], point[1] - 18), f"{value:.1f}", small_font, depth_color[:3])
     for point, value in zip(width_points, widths):
-        draw.ellipse((point[0] - 4, point[1] - 4, point[0] + 4, point[1] + 4), fill=(15, 118, 110, 255))
-        draw_centered(draw, (point[0], point[1] + 18), f"{value:.1f}", small_font, (17, 94, 89))
+        draw.rectangle((point[0] - 5, point[1] - 5, point[0] + 5, point[1] + 5), fill=width_color, outline=(255, 255, 255, 255), width=1)
+        draw_centered(draw, (point[0], point[1] + 20), f"{value:.1f}", small_font, (160, 62, 24))
 
-    draw.rectangle((left, top, right, bottom), outline=(15, 23, 42, 255), width=2)
-    draw_centered(draw, (left + plot_w / 2, bottom + 54), "测线距中心距离 / m", label_font, (30, 41, 59))
-    draw.text((left, top - 28), "水深与覆盖宽度 / m", font=label_font, fill=(30, 41, 59))
+    draw.line((left, top, left, bottom), fill=(35, 39, 45, 255), width=2)
+    draw.line((left, bottom, right, bottom), fill=(35, 39, 45, 255), width=2)
+    draw_centered(draw, (left + plot_w / 2, bottom + 64), "测线距中心距离 / m", label_font, (35, 39, 45))
+    draw.text((left, 30), "水深与覆盖宽度 / m", font=label_font, fill=(35, 39, 45))
 
-    panel_x, panel_y = 890, 130
-    draw.rounded_rectangle((panel_x, panel_y, panel_x + 190, panel_y + 260), radius=10, fill=(255, 255, 255, 235), outline=(185, 199, 206, 255))
-    draw.text((panel_x + 20, panel_y + 22), "结果摘要", font=label_font, fill=(15, 23, 42))
-    summary = [
-        f"中心水深：{CENTER_DEPTH:.1f} m",
-        f"测线间距：{LINE_SPACING:.0f} m",
-        f"开角：120°",
-        f"坡度：1.5°",
-        f"最大覆盖宽度：{max(widths):.2f} m",
-    ]
-    for i, item in enumerate(summary):
-        draw.text((panel_x + 20, panel_y + 66 + i * 26), item, font=text_font, fill=(16, 44, 61))
-    draw.line((panel_x + 22, panel_y + 210, panel_x + 62, panel_y + 210), fill=(37, 99, 235, 255), width=3)
-    draw.text((panel_x + 72, panel_y + 200), "水深", font=text_font, fill=(30, 41, 59))
-    draw.line((panel_x + 22, panel_y + 238, panel_x + 62, panel_y + 238), fill=(15, 118, 110, 255), width=3)
-    draw.text((panel_x + 72, panel_y + 228), "覆盖宽度", font=text_font, fill=(30, 41, 59))
+    legend_x, legend_y = right - 188, top + 16
+    draw.rounded_rectangle((legend_x, legend_y, right - 16, legend_y + 76), radius=5, fill=(255, 255, 255, 235), outline=(185, 188, 193, 255), width=1)
+    draw.line((legend_x + 16, legend_y + 24, legend_x + 54, legend_y + 24), fill=depth_color, width=4)
+    draw.ellipse((legend_x + 30, legend_y + 19, legend_x + 40, legend_y + 29), fill=depth_color)
+    draw.text((legend_x + 66, legend_y + 13), "海水深度", font=text_font, fill=(35, 39, 45))
+    draw.line((legend_x + 16, legend_y + 54, legend_x + 54, legend_y + 54), fill=width_color, width=4)
+    draw.rectangle((legend_x + 30, legend_y + 49, legend_x + 40, legend_y + 59), fill=width_color)
+    draw.text((legend_x + 66, legend_y + 43), "覆盖宽度", font=text_font, fill=(35, 39, 45))
 
-    image.save(PNG_PATH)
+    image.save(PNG_PATH, dpi=(300, 300))
 
 
 def draw_svg(depths: list[float], widths: list[float], overlaps: list[float | str]) -> None:
-    left, top, plot_w, plot_h = 95, 130, 760, 390
+    left, top, plot_w, plot_h = 95, 72, 840, 438
     right, bottom = left + plot_w, top + plot_h
-    value_min = min(depths + widths) * 0.90
-    value_max = max(depths + widths) * 1.06
+    value_min, value_max = 40.0, 340.0
 
     def pt(distance: float, value: float) -> tuple[float, float]:
         return map_point(distance, value, value_min, value_max)
@@ -157,10 +147,9 @@ def draw_svg(depths: list[float], widths: list[float], overlaps: list[float | st
         return " ".join(f"{pt(d, v)[0]:.2f},{pt(d, v)[1]:.2f}" for d, v in zip(DISTANCES, values))
 
     parts = [
-        '<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="690" viewBox="0 0 1120 690">',
-        "<style><![CDATA[text{font-family:'Microsoft YaHei','SimHei',Arial,sans-serif}.thin{vector-effect:non-scaling-stroke}.fixed-label{font-size:13px}.title{font-size:28px;font-weight:700}.axis{font-size:17px;font-weight:700}.panel{font-size:15px}]]></style>",
-        '<rect width="1120" height="690" fill="#f8fafc"/>',
-        '<text x="54" y="66" class="title" fill="#0f172a">问题一：多波束覆盖宽度与重叠率计算结果</text>',
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620">',
+        "<style><![CDATA[text{font-family:'Microsoft YaHei','SimHei',Arial,sans-serif}.thin{vector-effect:non-scaling-stroke}.fixed-label{font-size:14px}.axis{font-size:18px;font-weight:700}.panel{font-size:15px}]]></style>",
+        '<rect width="1000" height="620" fill="#ffffff"/>',
     ]
     for i in range(6):
         y = top + i / 5 * plot_h
@@ -171,29 +160,29 @@ def draw_svg(depths: list[float], widths: list[float], overlaps: list[float | st
         x, _ = pt(distance, value_min)
         parts.append(f'<line class="thin" x1="{x:.2f}" y1="{top}" x2="{x:.2f}" y2="{bottom}" stroke="#e2e8f0" stroke-width="1" opacity="0.7"/>')
         parts.append(f'<text x="{x:.2f}" y="{bottom + 22}" class="fixed-label" fill="#475569" text-anchor="middle">{distance}</text>')
-    parts.append(f'<polyline class="thin" points="{points(depths)}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>')
-    parts.append(f'<polyline class="thin" points="{points(widths)}" fill="none" stroke="#0f766e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>')
+    parts.append(f'<polyline class="thin" points="{points(depths)}" fill="none" stroke="#315b91" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>')
+    parts.append(f'<polyline class="thin" points="{points(widths)}" fill="none" stroke="#c85823" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>')
     for distance, value in zip(DISTANCES, depths):
         x, y = pt(distance, value)
-        parts.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="4" fill="#2563eb"/>')
-        parts.append(f'<text x="{x:.2f}" y="{y - 14:.2f}" class="fixed-label" fill="#1e40af" text-anchor="middle">{value:.1f}</text>')
+        parts.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="5" fill="#315b91" stroke="#ffffff" stroke-width="1"/>')
+        parts.append(f'<text x="{x:.2f}" y="{y - 14:.2f}" class="fixed-label" fill="#315b91" text-anchor="middle">{value:.1f}</text>')
     for distance, value in zip(DISTANCES, widths):
         x, y = pt(distance, value)
-        parts.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="4" fill="#0f766e"/>')
-        parts.append(f'<text x="{x:.2f}" y="{y + 22:.2f}" class="fixed-label" fill="#115e59" text-anchor="middle">{value:.1f}</text>')
-    parts.append(f'<rect class="thin" x="{left}" y="{top}" width="{plot_w}" height="{plot_h}" fill="none" stroke="#0f172a" stroke-width="2"/>')
-    parts.append(f'<text x="{left + plot_w / 2}" y="{bottom + 58}" class="axis" fill="#1e293b" text-anchor="middle">测线距中心距离 / m</text>')
-    parts.append(f'<text x="{left}" y="{top - 16}" class="axis" fill="#1e293b">水深与覆盖宽度 / m</text>')
-    panel_x, panel_y = 890, 130
-    parts.append(f'<rect class="thin" x="{panel_x}" y="{panel_y}" width="190" height="260" rx="10" fill="#ffffff" opacity="0.92" stroke="#b9c7ce"/>')
-    parts.append(f'<text x="{panel_x + 20}" y="{panel_y + 46}" class="axis" fill="#0f172a">结果摘要</text>')
-    for i, item in enumerate([f"中心水深：{CENTER_DEPTH:.1f} m", f"测线间距：{LINE_SPACING:.0f} m", "开角：120°", "坡度：1.5°", f"最大覆盖宽度：{max(widths):.2f} m"]):
-        parts.append(f'<text x="{panel_x + 20}" y="{panel_y + 82 + i * 26}" class="panel" fill="#102c3d">{item}</text>')
+        parts.append(f'<rect x="{x - 5:.2f}" y="{y - 5:.2f}" width="10" height="10" fill="#c85823" stroke="#ffffff" stroke-width="1"/>')
+        parts.append(f'<text x="{x:.2f}" y="{y + 24:.2f}" class="fixed-label" fill="#a03e18" text-anchor="middle">{value:.1f}</text>')
+    parts.append(f'<line class="thin" x1="{left}" y1="{top}" x2="{left}" y2="{bottom}" stroke="#23272d" stroke-width="2"/>')
+    parts.append(f'<line class="thin" x1="{left}" y1="{bottom}" x2="{right}" y2="{bottom}" stroke="#23272d" stroke-width="2"/>')
+    parts.append(f'<text x="{left + plot_w / 2}" y="{bottom + 69}" class="axis" fill="#23272d" text-anchor="middle">测线距中心距离 / m</text>')
+    parts.append(f'<text x="{left}" y="48" class="axis" fill="#23272d">水深与覆盖宽度 / m</text>')
+    panel_x, panel_y = right - 188, top + 16
     parts.extend([
-        f'<line class="thin" x1="{panel_x + 22}" y1="{panel_y + 210}" x2="{panel_x + 62}" y2="{panel_y + 210}" stroke="#2563eb" stroke-width="3"/>',
-        f'<text x="{panel_x + 72}" y="{panel_y + 215}" class="panel" fill="#1e293b">水深</text>',
-        f'<line class="thin" x1="{panel_x + 22}" y1="{panel_y + 238}" x2="{panel_x + 62}" y2="{panel_y + 238}" stroke="#0f766e" stroke-width="3"/>',
-        f'<text x="{panel_x + 72}" y="{panel_y + 243}" class="panel" fill="#1e293b">覆盖宽度</text>',
+        f'<rect class="thin" x="{panel_x}" y="{panel_y}" width="172" height="76" rx="5" fill="#ffffff" fill-opacity="0.94" stroke="#b9bcc1"/>',
+        f'<line class="thin" x1="{panel_x + 16}" y1="{panel_y + 24}" x2="{panel_x + 54}" y2="{panel_y + 24}" stroke="#315b91" stroke-width="4"/>',
+        f'<circle cx="{panel_x + 35}" cy="{panel_y + 24}" r="5" fill="#315b91"/>',
+        f'<text x="{panel_x + 66}" y="{panel_y + 29}" class="panel" fill="#23272d">海水深度</text>',
+        f'<line class="thin" x1="{panel_x + 16}" y1="{panel_y + 54}" x2="{panel_x + 54}" y2="{panel_y + 54}" stroke="#c85823" stroke-width="4"/>',
+        f'<rect x="{panel_x + 30}" y="{panel_y + 49}" width="10" height="10" fill="#c85823"/>',
+        f'<text x="{panel_x + 66}" y="{panel_y + 59}" class="panel" fill="#23272d">覆盖宽度</text>',
         "</svg>",
     ])
     SVG_PATH.write_text("\n".join(parts), encoding="utf-8")

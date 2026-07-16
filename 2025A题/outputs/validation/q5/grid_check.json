@@ -1,0 +1,111 @@
+{
+  "strategy_feasible": true,
+  "active_bomb_count": 13,
+  "grid_results": {
+    "coarse_check": {
+      "settings": {
+        "n_phi": 30,
+        "n_z": 7,
+        "n_radial": 5,
+        "scan_dt_s": 0.012
+      },
+      "missiles": {
+        "M1": {
+          "intervals_s": [
+            [
+              3.522745424906387,
+              7.9948503663969195
+            ]
+          ],
+          "duration_s": 4.4721049414905325
+        },
+        "M2": {
+          "intervals_s": [
+            [
+              13.255667555646585,
+              17.067490929737815
+            ]
+          ],
+          "duration_s": 3.8118233740912295
+        },
+        "M3": {
+          "intervals_s": [],
+          "duration_s": 0.0
+        }
+      },
+      "total_duration_s": 8.283928315581761,
+      "minimum_duration_s": 0.0
+    },
+    "medium_check": {
+      "settings": {
+        "n_phi": 60,
+        "n_z": 11,
+        "n_radial": 8,
+        "scan_dt_s": 0.006
+      },
+      "missiles": {
+        "M1": {
+          "intervals_s": [
+            [
+              3.522745424908056,
+              7.994850366396676
+            ]
+          ],
+          "duration_s": 4.47210494148862
+        },
+        "M2": {
+          "intervals_s": [
+            [
+              13.255667555641647,
+              17.067490929749432
+            ]
+          ],
+          "duration_s": 3.811823374107785
+        },
+        "M3": {
+          "intervals_s": [],
+          "duration_s": 0.0
+        }
+      },
+      "total_duration_s": 8.283928315596405,
+      "minimum_duration_s": 0.0
+    },
+    "formal_check": {
+      "settings": {
+        "n_phi": 120,
+        "n_z": 21,
+        "n_radial": 15,
+        "scan_dt_s": 0.003
+      },
+      "missiles": {
+        "M1": {
+          "intervals_s": [
+            [
+              3.522745424908056,
+              7.994850366396676
+            ]
+          ],
+          "duration_s": 4.47210494148862
+        },
+        "M2": {
+          "intervals_s": [
+            [
+              13.255911304753507,
+              17.067490929738454
+            ]
+          ],
+          "duration_s": 3.8115796249849474
+        },
+        "M3": {
+          "intervals_s": [],
+          "duration_s": 0.0
+        }
+      },
+      "total_duration_s": 8.283684566473568,
+      "minimum_duration_s": 0.0
+    }
+  },
+  "saved_vs_formal_total_abs_error_s": 0.0,
+  "optimizer_global_runs_all_converged": false,
+  "all_missiles_receive_positive_coverage": false
+}

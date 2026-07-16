@@ -1,0 +1,118 @@
+{
+  "metadata": {
+    "python": "3.9.25",
+    "numpy": "2.0.2",
+    "scipy": "1.13.1",
+    "criterion": "Every target sightline is blocked by at least one active cloud before the target.",
+    "random_seeds": [
+      2025,
+      2026,
+      2027
+    ]
+  },
+  "strategy": {
+    "bombs": [
+      {
+        "uav_id": "FY1",
+        "heading_deg": 176.7573362248345,
+        "speed_mps": 72.12764119705437,
+        "drop_time_s": 1.2377047952290485e-05,
+        "fuse_delay_s": 2.488477187590921,
+        "burst_time_s": 2.4884895646388734,
+        "drop_pos_m": [
+          17799.999108702053,
+          5.049707517051228e-05,
+          1800.0
+        ],
+        "burst_pos_m": [
+          17620.798493369486,
+          10.152779975563542,
+          1769.656658305514
+        ]
+      },
+      {
+        "uav_id": "FY2",
+        "heading_deg": 289.08722673473534,
+        "speed_mps": 106.54382729118743,
+        "drop_time_s": 8.082556058587219,
+        "fuse_delay_s": 5.452369388768732,
+        "burst_time_s": 13.53492544735595,
+        "drop_pos_m": [
+          12281.60111586894,
+          586.1977933418115,
+          1400.0
+        ],
+        "burst_pos_m": [
+          12471.564945736307,
+          37.21920192439052,
+          1254.3311734372467
+        ]
+      },
+      {
+        "uav_id": "FY3",
+        "heading_deg": 100.10431154896162,
+        "speed_mps": 136.6482160127278,
+        "drop_time_s": 17.783397899865292,
+        "fuse_delay_s": 5.305091664773556,
+        "burst_time_s": 23.08848956463885,
+        "drop_pos_m": [
+          5573.666621007886,
+          -607.6208286657693,
+          700.0
+        ],
+        "burst_pos_m": [
+          5446.484084349751,
+          106.0667844826288,
+          562.0944118989157
+        ]
+      }
+    ]
+  },
+  "joint_full_target_intervals_s": [
+    [
+      2.6284870180166573,
+      7.165627242574704
+    ],
+    [
+      13.708434098157571,
+      17.622269889696206
+    ],
+    [
+      26.638415852875816,
+      29.550310143137615
+    ]
+  ],
+  "joint_full_target_duration_s": 11.36287030635848,
+  "constraint_checks": {
+    "feasible": true,
+    "one_bomb_per_uav": true,
+    "uav_ids": [
+      "FY1",
+      "FY2",
+      "FY3"
+    ]
+  },
+  "optimization_diagnostics": {
+    "source": "C:\\Users\\94952\\2026MathModel\\2025A题\\outputs\\model\\q4\\results.json",
+    "fy1_warm_start": "verified question-2 strategy",
+    "stage1": {
+      "success": true,
+      "message": "Optimization terminated successfully.",
+      "iterations": 664,
+      "function_evaluations": 1389,
+      "objective": -111.4014275345941
+    },
+    "stage2": {
+      "success": true,
+      "message": "Optimization terminated successfully.",
+      "iterations": 787,
+      "function_evaluations": 1557,
+      "objective": -111.38141956824234
+    },
+    "candidate_stage2_objectives": [
+      -111.33023692306939,
+      -111.35142776464713,
+      -111.38141956824234
+    ]
+  }
+}

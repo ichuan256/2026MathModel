@@ -1,0 +1,389 @@
+{
+  "metadata": {
+    "python": "3.9.25",
+    "numpy": "2.0.2",
+    "scipy": "1.13.1",
+    "target_assignment_rule": "Each active bomb has one primary missile; cross-missile incidental coverage is not double-counted.",
+    "random_seeds": [
+      2025,
+      2026,
+      2027
+    ]
+  },
+  "active_bombs": [
+    {
+      "uav_id": "FY1",
+      "smoke_id": 1,
+      "target_id": "M1",
+      "heading_deg": 178.7415736425372,
+      "speed_mps": 119.27374338437362,
+      "drop_time_s": 0.03622096304757516,
+      "fuse_delay_s": 3.3018318668050224,
+      "burst_time_s": 3.3380528298525975,
+      "drop_pos_m": [
+        17795.68083214837,
+        0.09488009226588455,
+        1800.0
+      ],
+      "burst_pos_m": [
+        17401.95397204622,
+        8.743962993717643,
+        1746.5797409844192
+      ],
+      "individual_full_target_intervals_s": [
+        [
+          3.522745424918943,
+          7.9948503663965305
+        ]
+      ],
+      "individual_full_target_duration_s": 4.472104941477587
+    },
+    {
+      "uav_id": "FY1",
+      "smoke_id": 3,
+      "target_id": "M1",
+      "heading_deg": 178.7415736425372,
+      "speed_mps": 119.27374338437362,
+      "drop_time_s": 15.06219362993011,
+      "fuse_delay_s": 8.331900259846657,
+      "burst_time_s": 23.39409388977677,
+      "drop_pos_m": [
+        16003.909089440871,
+        39.455116625621024,
+        1800.0
+      ],
+      "burst_pos_m": [
+        15010.371846986416,
+        61.280363634267886,
+        1459.8392464938393
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY2",
+      "smoke_id": 1,
+      "target_id": "M2",
+      "heading_deg": 279.0652332810789,
+      "speed_mps": 114.85645929143286,
+      "drop_time_s": 5.939010689891791,
+      "fuse_delay_s": 2.740791398148592,
+      "burst_time_s": 8.679802088040383,
+      "drop_pos_m": [
+        12107.47622915878,
+        726.3863876243796,
+        1400.0
+      ],
+      "burst_pos_m": [
+        12157.075386285267,
+        415.52074166465854,
+        1363.19150630799
+      ],
+      "individual_full_target_intervals_s": [
+        [
+          13.255911304783218,
+          17.067490929740444
+        ]
+      ],
+      "individual_full_target_duration_s": 3.8115796249572256
+    },
+    {
+      "uav_id": "FY2",
+      "smoke_id": 2,
+      "target_id": "M2",
+      "heading_deg": 279.0652332810789,
+      "speed_mps": 114.85645929143286,
+      "drop_time_s": 12.506729195040124,
+      "fuse_delay_s": 14.756169383311361,
+      "burst_time_s": 27.262898578351486,
+      "drop_pos_m": [
+        12226.329966922052,
+        -18.53643173491423,
+        1400.0
+      ],
+      "burst_pos_m": [
+        12493.367277504065,
+        -1692.208543495333,
+        333.05177914201954
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY2",
+      "smoke_id": 3,
+      "target_id": "M1",
+      "heading_deg": 279.0652332810789,
+      "speed_mps": 114.85645929143286,
+      "drop_time_s": 16.90292742477117,
+      "fuse_delay_s": 2.2074854879370776,
+      "burst_time_s": 19.11041291270825,
+      "drop_pos_m": [
+        12305.886450827724,
+        -517.161392166227,
+        1400.0
+      ],
+      "burst_pos_m": [
+        12345.834554738365,
+        -767.5384922322224,
+        1376.1223383206814
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY3",
+      "smoke_id": 1,
+      "target_id": "M2",
+      "heading_deg": 160.79401472484793,
+      "speed_mps": 119.15784904955557,
+      "drop_time_s": 5.472525650059046,
+      "fuse_delay_s": 3.962915245060091,
+      "burst_time_s": 9.435440895119136,
+      "drop_pos_m": [
+        5384.199876947456,
+        -2785.48357679002,
+        700.0
+      ],
+      "burst_pos_m": [
+        4938.269816203295,
+        -2630.1420657190906,
+        623.0469835263045
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY3",
+      "smoke_id": 3,
+      "target_id": "M2",
+      "heading_deg": 160.79401472484793,
+      "speed_mps": 119.15784904955557,
+      "drop_time_s": 19.589667716025126,
+      "fuse_delay_s": 9.437225326590479,
+      "burst_time_s": 29.026893042615605,
+      "drop_pos_m": [
+        3795.657697838917,
+        -2232.1085876923407,
+        700.0
+      ],
+      "burst_pos_m": [
+        2733.7267195297873,
+        -1862.180705844042,
+        263.60001286228015
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY4",
+      "smoke_id": 1,
+      "target_id": "M1",
+      "heading_deg": 264.2265118478958,
+      "speed_mps": 85.27825623764362,
+      "drop_time_s": 3.558838501675895,
+      "fuse_delay_s": 1.5544350560570157,
+      "burst_time_s": 5.113273557732911,
+      "drop_pos_m": [
+        10969.469984257394,
+        1698.047960771143,
+        1800.0
+      ],
+      "burst_pos_m": [
+        10956.135036152857,
+        1566.1608760371182,
+        1788.160285116855
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY4",
+      "smoke_id": 2,
+      "target_id": "M1",
+      "heading_deg": 264.2265118478958,
+      "speed_mps": 85.27825623764362,
+      "drop_time_s": 13.731005419130826,
+      "fuse_delay_s": 7.773524738249471,
+      "burst_time_s": 21.504530157380298,
+      "drop_pos_m": [
+        10882.206565032253,
+        834.9836372129296,
+        1800.0
+      ],
+      "burst_pos_m": [
+        10815.52024798737,
+        175.43371787687147,
+        1503.904334404735
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY4",
+      "smoke_id": 3,
+      "target_id": "M2",
+      "heading_deg": 264.2265118478958,
+      "speed_mps": 85.27825623764362,
+      "drop_time_s": 26.501696317976005,
+      "fuse_delay_s": 11.356044583880818,
+      "burst_time_s": 37.85774090185682,
+      "drop_pos_m": [
+        10772.651328400387,
+        -248.55419611437947,
+        1800.0
+      ],
+      "burst_pos_m": [
+        10675.231841745863,
+        -1212.0654141878847,
+        1168.0972319036646
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY5",
+      "smoke_id": 1,
+      "target_id": "M2",
+      "heading_deg": 190.81599206026502,
+      "speed_mps": 128.35840974752722,
+      "drop_time_s": 8.375449338495995,
+      "fuse_delay_s": 12.192941647336784,
+      "burst_time_s": 20.568390985832778,
+      "drop_pos_m": [
+        11944.039166413637,
+        -2201.7407771799367,
+        1300.0
+      ],
+      "burst_pos_m": [
+        10406.776112763111,
+        -2495.434097338573,
+        571.5276525247367
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY5",
+      "smoke_id": 2,
+      "target_id": "M2",
+      "heading_deg": 190.81599206026502,
+      "speed_mps": 128.35840974752722,
+      "drop_time_s": 21.243123881259415,
+      "fuse_delay_s": 2.3105297636337827,
+      "burst_time_s": 23.553653644893195,
+      "drop_pos_m": [
+        10321.707063699912,
+        -2511.686495653083,
+        1300.0
+      ],
+      "burst_pos_m": [
+        10030.399835081304,
+        -2567.34059269005,
+        1273.8411158356757
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    },
+    {
+      "uav_id": "FY5",
+      "smoke_id": 3,
+      "target_id": "M1",
+      "heading_deg": 190.81599206026502,
+      "speed_mps": 128.35840974752722,
+      "drop_time_s": 30.772743965652012,
+      "fuse_delay_s": 13.996835878585252,
+      "burst_time_s": 44.76957984423726,
+      "drop_pos_m": [
+        9120.230562394541,
+        -2741.227966725981,
+        1300.0
+      ],
+      "burst_pos_m": [
+        7355.535931147866,
+        -3078.3719734632814,
+        340.0340684009482
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    }
+  ],
+  "active_bomb_count": 13,
+  "missiles": {
+    "M1": {
+      "assigned_bomb_count": 6,
+      "joint_full_target_intervals_s": [
+        [
+          3.522745424908056,
+          7.994850366396676
+        ]
+      ],
+      "joint_full_target_duration_s": 4.47210494148862
+    },
+    "M2": {
+      "assigned_bomb_count": 7,
+      "joint_full_target_intervals_s": [
+        [
+          13.255911304753507,
+          17.067490929738454
+        ]
+      ],
+      "joint_full_target_duration_s": 3.8115796249849474
+    },
+    "M3": {
+      "assigned_bomb_count": 0,
+      "joint_full_target_intervals_s": [],
+      "joint_full_target_duration_s": 0.0
+    }
+  },
+  "total_joint_duration_s": 8.283684566473568,
+  "minimum_missile_duration_s": 0.0,
+  "constraint_checks": {
+    "feasible": true,
+    "at_most_three_bombs_per_uav": true,
+    "same_heading_and_speed_per_uav": true,
+    "drop_gaps_at_least_one_second": true
+  },
+  "optimization_diagnostics": {
+    "random_seeds": [
+      2025,
+      2026,
+      2027
+    ],
+    "selected_global_seed": 2025,
+    "baseline_objective": -2.850030093984963,
+    "global_runs": [
+      {
+        "seed": 2025,
+        "success": false,
+        "message": "Maximum number of iterations has been exceeded.",
+        "iterations": 120,
+        "function_evaluations": 33275,
+        "coarse_objective": -8.243399039512592,
+        "local_grid_objective": -8.29703375020837
+      },
+      {
+        "seed": 2026,
+        "success": false,
+        "message": "Maximum number of iterations has been exceeded.",
+        "iterations": 120,
+        "function_evaluations": 33275,
+        "coarse_objective": -4.4985410347073715,
+        "local_grid_objective": -4.4985406029455435
+      },
+      {
+        "seed": 2027,
+        "success": false,
+        "message": "Maximum number of iterations has been exceeded.",
+        "iterations": 120,
+        "function_evaluations": 33275,
+        "coarse_objective": -4.047038112867844,
+        "local_grid_objective": -3.9471123821874134
+      }
+    ],
+    "local_success": true,
+    "local_message": "Optimization terminated successfully.",
+    "local_iterations": 1,
+    "local_function_evaluations": 1263
+  }
+}
