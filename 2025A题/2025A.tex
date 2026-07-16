@@ -1,0 +1,656 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[UTF8]{ctex}
+\usepackage[left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}
+\setstretch{1.35}
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0.15em}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\lstdefinestyle{pythoncode}{
+  language=Python,
+  basicstyle=\ttfamily\scriptsize,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=7pt,
+  frame=single,
+  rulecolor=\color{black!35},
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=4,
+  captionpos=t
+}
+\lstset{style=pythoncode}
+
+\begin{document}
+
+\begin{center}
+{\LARGE\heiti\bfseries 多无人机烟幕干扰弹协同投放的几何建模与分层优化}
+\end{center}
+\vspace{0.5em}
+
+\begin{center}
+{\Large\heiti\bfseries 摘\quad 要}
+\end{center}
+
+本文研究多架无人机投放烟幕干扰弹对来袭导弹实施视线遮蔽的策略优化问题。针对真目标为半径 $7\,\mathrm{m}$、高 $10\,\mathrm{m}$ 的圆柱体，建立导弹、无人机、烟幕弹和烟雾云团的统一三维运动模型。把导弹视为点观察者，将“完整遮蔽”定义为：导弹到真目标圆柱任一点的视线，在到达目标前至少与一团有效烟雾相交。计算中对圆柱表面离散采样，并利用线段与球体的解析相交条件判断遮蔽状态；对有效区间端点采用二分法精修。
+
+针对问题一，在给定航向、速度和投放时序下进行确定性复算，得到完整遮蔽区间为 $[8.056445,9.389248]$ s，有效时长为 $1.332802$ s。针对问题二，建立航向、速度、投放时刻和引信延迟的四变量非光滑优化模型，采用多种子差分进化和局部边界精修，得到当前搜索精度下的最优已知策略：航向 $176.641086^\circ$、速度 $70\,\mathrm{m/s}$、立即投放、引信延迟 $2.496799$ s，有效时长为 $4.542880$ s。
+
+针对问题三，采用增量编码保证同机相邻投放间隔不小于 $1$ s，并对三团烟雾逐目标视线取逻辑“或”。当前保存可行方案的联合遮蔽时长为 $6.580662$ s，其中前两枚弹形成接力，第三枚弹独立贡献为 $0$。针对问题四，先以单机策略构造热启动，再进行十二维联合差分进化和两级局部精修，得到三个互不重叠的遮蔽区间，总时长为 $11.362870$ s。
+
+针对问题五，重点澄清多导弹口径：只有在同一时刻 $M_1,M_2,M_3$ 均无法完整观测真目标时才计时，因此最终指标是三枚导弹完整遮蔽时间集合的交集长度，而不是各导弹时长或各烟幕弹时长的简单相加。本文采用“15 个单机--单导弹子问题、150 个任务分配、严格联合重评分、30 维时序同步”的分层算法，得到当前预算下的严格可行解 $3.743312$ s，公共区间为 $[15.051012,18.794325]$ s。四档时空网格复算结果之差约为 $10^{-10}$ s，所有运动学和投放约束均通过检查。
+
+\noindent\textbf{关键词：}烟幕干扰弹；完整视线遮蔽；差分进化；协同投放；时间集合交集
+
+\newpage
+\section{问题重述}
+
+\subsection{问题背景}
+
+五架无人机在空域中巡飞，接到任务后可立即改变航向，随后保持等高度、匀速、直线飞行，并在规定时刻投放烟幕干扰弹。烟幕弹起爆后形成半径为 $10\,\mathrm{m}$ 的球形有效烟雾区，球心以 $3\,\mathrm{m/s}$ 匀速下沉，有效时间为 $20$ s。三枚来袭导弹以 $300\,\mathrm{m/s}$ 沿直线飞向位于原点的假目标。需要利用烟雾遮断导弹对真目标的视线，使有效遮蔽时间尽可能长。
+
+真目标是下底面圆心为 $(0,200,0)$、半径为 $7\,\mathrm{m}$、高为 $10\,\mathrm{m}$ 的圆柱体。各实体初始位置见表~\ref{tab:initial-position}。
+
+\begin{table}[H]
+\centering
+\caption{导弹与无人机初始位置}
+\label{tab:initial-position}
+\begin{tabular}{crrr@{\qquad}crrr}
+\toprule
+导弹 & $x$ & $y$ & $z$ & 无人机 & $x$ & $y$ & $z$ \\
+\midrule
+$M_1$ & 20000 & 0 & 2000 & $FY_1$ & 17800 & 0 & 1800 \\
+$M_2$ & 19000 & 600 & 2100 & $FY_2$ & 12000 & 1400 & 1400 \\
+$M_3$ & 18000 & $-600$ & 1900 & $FY_3$ & 6000 & $-3000$ & 700 \\
+& & & & $FY_4$ & 11000 & 2000 & 1800 \\
+& & & & $FY_5$ & 13000 & $-2000$ & 1300 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{五个子问题}
+
+\begin{enumerate}[label=\textbf{问题\arabic*.},leftmargin=5em]
+\item 计算 $FY_1$ 按给定航向、速度、投放时刻和引信延迟投放一枚烟幕弹时，对 $M_1$ 的有效遮蔽时长。
+\item 优化 $FY_1$ 的单机单弹策略，使其对 $M_1$ 的有效遮蔽时间最长。
+\item 设计 $FY_1$ 连续投放三枚烟幕弹的策略，最大化对 $M_1$ 的联合遮蔽时长。
+\item 设计 $FY_1,FY_2,FY_3$ 各投一枚烟幕弹的协同策略，最大化对 $M_1$ 的联合遮蔽时长。
+\item 设计五架无人机至多十五枚烟幕弹对 $M_1,M_2,M_3$ 的协同投放策略。
+\end{enumerate}
+
+\section{问题分析}
+
+五问共享相同的运动学和几何判据，区别主要在决策维数及时间集合的聚合方式。问题一是固定参数的确定性计算；问题二是四维连续黑箱优化；问题三增加同机共享航向、速度及投放间隔约束；问题四允许多机从不同空间位置形成时间接力；问题五还需处理任务分配和三枚导弹的共同时间。
+
+多烟团协同存在两种不同层次的逻辑。对同一枚导弹、同一目标点，只要至少一团烟雾阻断视线即可，因此对烟团取逻辑“或”；要使整个圆柱不可见，则所有目标检查点均须被阻断，因此对目标点取逻辑“且”。问题五进一步要求三枚导弹在同一时刻均被遮蔽，因此还要对导弹取逻辑“且”。这一区分决定了问题三、四按时间并集计时，而问题五必须计算三枚导弹遮蔽时间集合的交集。
+
+\section{模型假设}
+
+\begin{enumerate}[label=(\arabic*)]
+\item 无人机接到任务后可瞬时改变航向，之后保持等高度、匀速、直线飞行；同一无人机投放的所有烟幕弹共享航向和速度。
+\item 烟幕弹脱离无人机时继承其水平速度，竖直初速度为零，飞行阶段仅受重力作用，取 $g=9.8\,\mathrm{m/s^2}$。
+\item 烟幕弹起爆后瞬时形成半径 $10\,\mathrm{m}$ 的球形有效区域，球心只以 $3\,\mathrm{m/s}$ 竖直下沉，有效期为 $20$ s。
+\item 导弹保持题目给定的直线轨迹，不因烟雾改变运动状态。
+\item 不考虑风、空气阻力、烟雾扩散和浓度随时间衰减；这些因素的参数题目未给出。
+\item 主模型采用完整圆柱遮蔽判据，不以目标中心点代替实体目标。
+\end{enumerate}
+
+\section{符号说明}
+
+\begin{table}[H]
+\centering
+\caption{主要符号}
+\label{tab:symbols}
+\begin{tabular}{cll}
+\toprule
+符号 & 含义 & 单位 \\
+\midrule
+$\boldsymbol S_{m,j},\boldsymbol S_{u,i}$ & 导弹 $j$、无人机 $i$ 的初始位置 & m \\
+$\theta_i,v_i$ & 无人机 $i$ 的航向角和速度 & $^\circ$，m/s \\
+$t_{d,ik},\tau_{ik}$ & 第 $(i,k)$ 枚弹的投放时刻和引信延迟 & s \\
+$t_{b,ik}$ & 第 $(i,k)$ 枚弹的起爆时刻 & s \\
+$\boldsymbol C_{ik}(t)$ & 第 $(i,k)$ 团烟雾在 $t$ 时刻的球心 & m \\
+$R_c,T_c$ & 烟雾有效半径和寿命 & m，s \\
+$\Omega$ & 真目标圆柱实体 & --- \\
+$B_j(t)$ & 导弹 $j$ 在 $t$ 时刻是否被完整遮蔽 & 0/1 \\
+$\mu(\mathcal I)$ & 时间集合 $\mathcal I$ 的总长度 & s \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{统一模型准备}
+
+\subsection{运动学模型}
+
+导弹 $j$ 沿初始点指向原点的方向飞行，位置为
+\begin{equation}
+\boldsymbol P_{m,j}(t)=\boldsymbol S_{m,j}-300t\frac{\boldsymbol S_{m,j}}{\|\boldsymbol S_{m,j}\|},
+\quad 0\le t\le \frac{\|\boldsymbol S_{m,j}\|}{300}.
+\label{eq:missile}
+\end{equation}
+
+无人机 $i$ 的航向单位向量和位置分别为
+\begin{equation}
+\boldsymbol h_i=(\cos\theta_i,\sin\theta_i,0),\qquad
+\boldsymbol P_{u,i}(t)=\boldsymbol S_{u,i}+v_it\boldsymbol h_i.
+\label{eq:uav}
+\end{equation}
+
+第 $(i,k)$ 枚弹的起爆时刻 $t_{b,ik}=t_{d,ik}+\tau_{ik}$。投放点和起爆点为
+\begin{align}
+\boldsymbol P_{d,ik}&=\boldsymbol S_{u,i}+v_it_{d,ik}\boldsymbol h_i,\\
+\boldsymbol P_{b,ik}&=\boldsymbol P_{d,ik}+v_i\tau_{ik}\boldsymbol h_i-\frac12g\tau_{ik}^2(0,0,1).
+\label{eq:bomb}
+\end{align}
+起爆后云团球心为
+\begin{equation}
+\boldsymbol C_{ik}(t)=\boldsymbol P_{b,ik}-3(t-t_{b,ik})(0,0,1),
+\quad t\in[t_{b,ik},t_{b,ik}+20].
+\label{eq:cloud}
+\end{equation}
+
+\subsection{线段--球相交判据}
+
+设导弹位置为 $\boldsymbol P$，目标检查点为 $\boldsymbol Q$，烟雾球心为 $\boldsymbol C$。令
+\begin{equation}
+\boldsymbol u=\frac{\boldsymbol Q-\boldsymbol P}{\|\boldsymbol Q-\boldsymbol P\|},\quad
+s=\boldsymbol u\cdot(\boldsymbol C-\boldsymbol P),\quad
+d_\perp^2=\|\boldsymbol C-\boldsymbol P\|^2-s^2.
+\end{equation}
+若 $d_\perp\le R_c$，则视线进入烟雾球的距离为
+\begin{equation}
+s_{\mathrm{in}}=s-\sqrt{R_c^2-d_\perp^2}.
+\end{equation}
+只有
+\begin{equation}
+d_\perp^2\le R_c^2,\qquad 0\le s_{\mathrm{in}}\le \|\boldsymbol Q-\boldsymbol P\|
+\label{eq:block}
+\end{equation}
+同时成立时，烟雾才位于导弹与目标之间并有效阻断该条视线。
+
+\subsection{完整目标与多烟团联合遮蔽}
+
+将圆柱侧面、上下端面离散为检查点集合 $\mathcal Q_N$。定义 $Z_{j\ell,ik}(t)$ 表示烟团 $(i,k)$ 是否阻断导弹 $j$ 到检查点 $\boldsymbol Q_\ell$ 的视线，则导弹 $j$ 的完整遮蔽状态为
+\begin{equation}
+B_j(t)=\prod_{\ell=1}^{N}\mathbf{1}\!\left\{\sum_{i,k}Z_{j\ell,ik}(t)\ge1\right\}.
+\label{eq:single-missile-bool}
+\end{equation}
+式~\eqref{eq:single-missile-bool}先对烟团取“或”，再对目标点取“且”，允许不同烟团分别遮住目标的不同部分。
+
+问题一至四的有效时间集合为 $\mathcal I_1=\{t:B_1(t)=1\}$，目标为 $\mu(\mathcal I_1)$。问题五的共同状态和目标为
+\begin{equation}
+B(t)=B_1(t)B_2(t)B_3(t),\qquad
+T_5=\int B(t)\,\mathrm dt
+=\mu(\mathcal I_1\cap\mathcal I_2\cap\mathcal I_3).
+\label{eq:q5-objective}
+\end{equation}
+
+程序先按固定时间步长搜索状态变化，再在相邻异状态时刻间二分定位端点。多段有效区间合并后计算集合长度。
+
+\section{问题一：固定策略计算}
+
+$FY_1$ 航向为 $180^\circ$、速度为 $120\,\mathrm{m/s}$，在 $1.5$ s 投放，引信延迟为 $3.6$ s。由式~\eqref{eq:uav}--\eqref{eq:bomb}得到
+\begin{equation}
+\boldsymbol P_d=(17620,0,1800),\quad
+\boldsymbol P_b=(17188,0,1736.496),\quad t_b=5.1\ \mathrm{s}.
+\end{equation}
+严格完整遮蔽结果见表~\ref{tab:q1-result}。
+
+给定策略不含待优化变量。记其参数为 $\boldsymbol x_1^{(0)}=(180^\circ,120,1.5,3.6)$，则问题一只需按统一判据计算
+\begin{equation}
+F_1=\mu\bigl(\{t\in[0,T_{m,1}]:B_1(t;\boldsymbol x_1^{(0)})=1\}\bigr),
+\label{eq:q1-objective}
+\end{equation}
+其中 $B_1(t;\boldsymbol x_1^{(0)})$ 已同时包含云团有效期、线段--球相交和完整圆柱检查点条件。
+
+\begin{table}[H]
+\centering
+\caption{问题一计算结果}
+\label{tab:q1-result}
+\begin{tabular}{lcc}
+\toprule
+判据 & 有效区间（s） & 有效时长（s） \\
+\midrule
+完整圆柱主判据 & $[8.056445,9.389248]$ & \textbf{1.332802} \\
+目标中心线基线 & $[8.013006,9.389248]$ & 1.376241 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+中心线基线比完整圆柱结果长 $0.043439$ s，说明只遮住目标中心会高估遮蔽开始时刻附近的效果，后续各问均采用完整圆柱判据。
+
+\section{问题二：单机单弹优化}
+
+\subsection{模型与算法}
+
+令 $\boldsymbol x_2=(\theta,v,t_d,\tau)$，其中 $\theta,v$ 分别为航向与速度，$t_d,\tau$ 分别为投放时刻与引信延迟。严格优化模型为
+\begin{equation}
+\begin{aligned}
+\max_{\boldsymbol x_2}\quad &F_2(\boldsymbol x_2)
+=\mu\bigl(\{t\in[0,T_{m,1}]:B_1(t;\boldsymbol x_2)=1\}\bigr),\\
+\mathrm{s.t.}\quad
+&0\le\theta<360^\circ,\qquad 70\le v\le140,\\
+&t_d\ge0,\qquad \tau\ge0,\\
+&z_b(\boldsymbol x_2)\ge0,\qquad t_b=t_d+\tau\le T_{m,1}.
+\end{aligned}
+\label{eq:q2-model}
+\end{equation}
+由于目标由离散几何状态和区间切换构成，不连续且不可导，采用差分进化进行全局搜索\cite{storn1997}。随机种子取 2025、2026、2027，随后以更密目标网格进行局部和边界精修。最终解位于速度下界和投放时刻下界，因此再固定 $v=70$、$t_d=0$，对航向和引信延迟作二维高精度搜索。
+
+\subsection{结果}
+
+\begin{table}[H]
+\centering
+\caption{问题二当前最优已知数值策略}
+\label{tab:q2-result}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{cccccc}
+\toprule
+航向角（$^\circ$） & 速度（m/s） & 投放时刻（s） & 引信延迟（s） & 起爆点（m） & 时长（s） \\
+\midrule
+176.641086 & 70.000 & 0 & 2.496799 & $(17625.524,10.240,1769.453)$ & \textbf{4.542880} \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+有效区间为 $[2.496799,7.039679]$ s。三种子复算、局部扰动和分辨率检查均未得到更长结果，但数值搜索不能构成解析全局最优证明，因此称其为当前搜索范围和精度下的最优已知数值解。
+
+\section{问题三：单机三弹协同}
+
+\subsection{模型与约束处理}
+
+三枚弹共享航向和速度。令
+\begin{equation}
+\boldsymbol x_3=(\theta,v,t_{d,1},\tau_1,\delta_2,\tau_2,\delta_3,\tau_3),
+\end{equation}
+其中 $\delta_2,\delta_3$ 是相邻投放时刻的额外间隔。使用增量编码
+\begin{equation}
+t_{d,2}=t_{d,1}+1+\delta_2,\qquad
+t_{d,3}=t_{d,2}+1+\delta_3,\qquad \delta_2,\delta_3\ge0,
+\end{equation}
+自动满足相邻投放至少间隔 $1$ s。令 $B_1^{(3)}(t;\boldsymbol x_3)$ 表示三团烟雾联合后对 $M_1$ 的完整遮蔽状态，则优化模型为
+\begin{equation}
+\begin{aligned}
+\max_{\boldsymbol x_3}\quad &F_3(\boldsymbol x_3)
+=\mu\bigl(\{t\in[0,T_{m,1}]:B_1^{(3)}(t;\boldsymbol x_3)=1\}\bigr),\\
+\mathrm{s.t.}\quad
+&0\le\theta<360^\circ,\quad 70\le v\le140,\quad t_{d,1}\ge0,\\
+&\delta_2,\delta_3,\tau_1,\tau_2,\tau_3\ge0,\\
+&z_{b,k}(\boldsymbol x_3)\ge0,\quad t_{b,k}(\boldsymbol x_3)\le T_{m,1},\quad k=1,2,3.
+\end{aligned}
+\label{eq:q3-model}
+\end{equation}
+多团烟雾在每条目标视线上按式~\eqref{eq:single-missile-bool}联合判断，因此 $F_3$ 不重复累计重叠区间，也不要求任意单枚烟幕弹独立遮住整个圆柱。
+
+\subsection{当前可行方案}
+
+\begin{table}[H]
+\centering
+\caption{问题三当前保存可行策略}
+\label{tab:q3-result}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{ccccccc}
+\toprule
+航向角（$^\circ$） & 速度（m/s） & 弹号 & 投放时刻（s） & 延迟（s） & 起爆时刻（s） & 独立贡献（s） \\
+\midrule
+179.541261 & 139.365786 & 1 & 0.002529 & 3.601316 & 3.603845 & 3.988667 \\
+-- & -- & 2 & 3.669878 & 5.291630 & 8.961508 & 2.592377 \\
+-- & -- & 3 & 11.642238 & 3.367908 & 15.010146 & 0 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+联合有效区间为
+\begin{equation}
+[4.952844,8.941512]\cup[8.961508,11.553885]\ \mathrm{s},
+\end{equation}
+总时长为 $6.580662$ s。第三枚弹在该策略中没有产生独立完整遮蔽区间，因此其边际贡献为零。该结果满足同机共享航向、速度和投放间隔约束；由于另一次未固化的局部扰动曾给出略长候选，本文只把表~\ref{tab:q3-result}称为当前保存可行方案，不宣称全局最优。
+
+\section{问题四：三机各一弹协同}
+
+\subsection{模型与求解}
+
+对 $FY_1,FY_2,FY_3$ 分别设置 $\theta_i,v_i,t_{d,i},\tau_i$，记
+\begin{equation}
+\boldsymbol x_4=\bigl(\theta_i,v_i,t_{d,i},\tau_i\bigr)_{i=1}^{3}.
+\end{equation}
+三机协同的严格模型为
+\begin{equation}
+\begin{aligned}
+\max_{\boldsymbol x_4}\quad &F_4(\boldsymbol x_4)
+=\mu\bigl(\{t\in[0,T_{m,1}]:B_1^{(4)}(t;\boldsymbol x_4)=1\}\bigr),\\
+\mathrm{s.t.}\quad
+&0\le\theta_i<360^\circ,\quad 70\le v_i\le140,\quad t_{d,i}\ge0,\quad \tau_i\ge0,\\
+&z_{b,i}(\boldsymbol x_4)\ge0,\quad t_{b,i}(\boldsymbol x_4)\le T_{m,1},\quad i=1,2,3.
+\end{aligned}
+\label{eq:q4-model}
+\end{equation}
+先分别求解单机单弹基线，再将问题二的高质量 $FY_1$ 策略和其余单机结果作为联合种群热启动，使用多种子差分进化全局搜索，最后采用两级 Nelder--Mead 方法局部精修\cite{nelder1965}。
+
+\subsection{结果}
+
+\begin{table}[H]
+\centering
+\caption{问题四三机协同策略}
+\label{tab:q4-result}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{cccccc}
+\toprule
+无人机 & 航向角（$^\circ$） & 速度（m/s） & 投放时刻（s） & 引信延迟（s） & 起爆时刻（s） \\
+\midrule
+$FY_1$ & 176.757336 & 72.127641 & 0.000012 & 2.488477 & 2.488490 \\
+$FY_2$ & 289.087227 & 106.543827 & 8.082556 & 5.452369 & 13.534925 \\
+$FY_3$ & 100.104312 & 136.648216 & 17.783398 & 5.305092 & 23.088490 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+三个联合完整遮蔽区间为
+\begin{equation}
+\begin{aligned}
+\mathcal I_1={}&[2.628487,7.165627]\cup[13.708434,17.622270]\\
+&\cup[26.638416,29.550310]\ \mathrm{s},
+\end{aligned}
+\end{equation}
+总时长为 $11.362870$ s。三个区间互不重叠，分别由三架无人机的烟团形成时间接力，因此此处并集长度恰好等于三个区间长度之和；这是一种由“不重叠”验证得到的特例，而不是普遍的简单相加规则。
+
+\section{问题五：五机多弹对三导弹的严格联合优化}
+
+\subsection{评价口径：必须取三集合交集}
+
+设 $\mathcal I_j=\{t:B_j(t)=1\}$ 为导弹 $M_j$ 无法完整观测真目标的时间集合。第五问的有效时刻必须同时属于三个集合，因此目标为式~\eqref{eq:q5-objective}。例如，若 $M_1,M_2,M_3$ 分别在 $[10,13]$、$[14,17]$、$[18,20]$ s 被遮蔽，则单独时长之和为 $8$ s，但三集合交集为空，第五问结果应为 $0$ s。
+
+同样，多个烟团对同一导弹、同一目标点可以协同遮挡，但同一时刻的重复遮蔽只能计一次。由此必须严格区分：搜索代理收益、单导弹并集时长、三导弹共同交集时长。
+
+\subsection{决策变量与约束}
+
+对第 $i$ 架无人机，定义
+\begin{equation}
+\boldsymbol x_{5,i}=(\theta_i,v_i,t_{d,i1},\delta_{i2},\delta_{i3},\tau_{i1},\tau_{i2},\tau_{i3}),
+\qquad \boldsymbol x_5=(\boldsymbol x_{5,1},\ldots,\boldsymbol x_{5,5}).
+\label{eq:q5-variables}
+\end{equation}
+其中 $t_{d,i2}=t_{d,i1}+1+\delta_{i2}$、$t_{d,i3}=t_{d,i2}+1+\delta_{i3}$。因此每架无人机有 $8$ 个连续变量，五架无人机共 $40$ 维；严格目标仍为式~\eqref{eq:q5-objective}。主要约束为
+\begin{equation}
+\begin{cases}
+70\le v_i\le140,\quad 0\le\theta_i<360^\circ,\\
+t_{d,i,k+1}-t_{d,ik}\ge1,\\
+t_{d,ik}\ge0,\quad \tau_{ik}\ge0,\quad z_{b,ik}\ge0,\\
+t_{b,ik}\le \min_j T_{m,j}.
+\end{cases}
+\end{equation}
+每团物理烟雾均对三枚导弹进行实际几何判断，结果表中的“主要贡献导弹”只用于解释，不限制烟团作用对象。
+
+\subsection{分层求解算法}
+
+直接在四十维阶跃目标上随机搜索很难同时形成三枚导弹的公共区间，因此采用以下分层方法：
+
+\begin{enumerate}[label=\textbf{步骤\arabic*.}]
+\item 求解 $5\times3=15$ 个“单机三弹--单导弹”子问题，得到物理完整遮蔽收益 $T_{ij}$。
+\item 枚举五架无人机到三枚导弹的全部 $150$ 个满射分配。令 $a_{ij}\in\{0,1\}$ 表示无人机 $i$ 暂时分配给导弹 $j$，其辅助排序模型为
+\begin{equation}
+\begin{aligned}
+\max_{a_{ij}}\quad &\sum_{i=1}^{5}\sum_{j=1}^{3}a_{ij}T_{ij},\\
+\mathrm{s.t.}\quad &\sum_{j=1}^{3}a_{ij}=1\quad(i=1,\ldots,5),\\
+&\sum_{i=1}^{5}a_{ij}\ge1\quad(j=1,2,3),\qquad a_{ij}\in\{0,1\}.
+\end{aligned}
+\label{eq:q5-assignment-proxy}
+\end{equation}
+该式只用于产生和排序热启动候选，$\sum a_{ij}T_{ij}$ 不是第五问答案。
+\item 把全部候选放回共同时间轴，按式~\eqref{eq:q5-objective}严格重评分，选择可行热启动。
+\item 固定热启动的航向和速度，对 $30$ 个投放与引信时间变量进行两个随机种子、各 $100$ 代、每代 $60$ 个候选的差分进化同步搜索。
+\item 使用完整四十维策略和高密度圆柱网格重新计算三枚导弹状态，最终只报告严格共同交集。
+\end{enumerate}
+
+搜索中在尚未出现严格共同遮蔽时，以最小表面覆盖比例积分提供弱引导；一旦产生正的严格时长，任何严格可行解均优先于只有部分覆盖的方案。两个正式随机运行均达到 $100$ 代预算上限，故停止原因是预算耗尽，不表示已证明收敛。
+
+\subsection{结果与交集分析}
+
+\begin{table}[H]
+\centering
+\caption{问题五各无人机公共飞行参数}
+\label{tab:q5-uav}
+\begin{tabular}{ccc}
+\toprule
+无人机 & 航向角（$^\circ$） & 速度（m/s） \\
+\midrule
+$FY_1$ & 179.818798 & 110.803964 \\
+$FY_2$ & 275.659639 & 109.756238 \\
+$FY_3$ & 153.704452 & 100.675045 \\
+$FY_4$ & 268.065291 & 134.558891 \\
+$FY_5$ & 124.119117 & 133.285425 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{问题五各导弹严格完整遮蔽区间}
+\label{tab:q5-missile}
+\begin{tabular}{ccc}
+\toprule
+导弹 & 完整遮蔽区间（s） & 时长（s） \\
+\midrule
+$M_1$ & $[15.051012,18.794325]$ & 3.743312 \\
+$M_2$ & $[15.044856,18.810081]$ & 3.765225 \\
+$M_3$ & $[14.724008,20.873813]$ & 6.149805 \\
+\midrule
+三集合交集 & $[15.051012,18.794325]$ & \textbf{3.743312} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+由表~\ref{tab:q5-missile}可知，公共区间的左端由 $M_1$ 的开始时刻决定，右端也由 $M_1$ 的结束时刻决定，故 $M_1$ 是当前方案的瓶颈。若把三枚导弹单独时长相加会得到 $13.658343$ 导弹秒，但这一量纲为“导弹秒”，不是目标完全不可见的实际秒数，不能作为第五问答案。
+
+作为反例复核，一种逐弹累计的对照程序会得到 $21.0770$ s，但其计算方式是十五枚弹各自时长求和；按该程序输出区间重新计算，三枚导弹的共同交集为 $0$ s。这进一步说明第五问必须在统一时间轴上取三集合交集。本文最终采用经过严格联合复算的 $3.743312$ s。
+
+\section{模型检验}
+
+\subsection{运动学与约束检查}
+
+所有策略均从同一组航向、速度、投放时刻和引信延迟重新计算投放点与起爆点，检查速度范围、非负时间、起爆高度、导弹到达时刻以及同机投放间隔。问题一至五的机器结果均通过相应硬约束。问题三第三枚弹虽无独立贡献，但仍满足物理约束；问题五使用十五枚弹，同机航向和速度保持一致。
+
+\subsection{空间与时间分辨率}
+
+\begin{table}[H]
+\centering
+\caption{关键结果的分辨率复算}
+\label{tab:convergence}
+\begin{tabular}{lccc}
+\toprule
+问题 & 空间网格或周向点 & 时间步长（s） & 时长（s） \\
+\midrule
+问题一 & 180～2880 周向点 & 0.01～0.001 & 1.3328020494 \\
+问题二 & 180～2880 周向点 & 0.01～0.001 & 4.5428799695 \\
+问题四 & $60\times11$，径向 8 & 0.005 & 11.3628703063 \\
+问题四 & $180\times31$，径向 21 & 0.002 & 11.3628703064 \\
+问题五 & $30\times7$，径向 5 & 0.012 & 3.7433124515 \\
+问题五 & $180\times31$，径向 20 & 0.002 & 3.7433124516 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+问题四粗细网格差约为 $10^{-10}$ s，问题五保存结果与加密网格差约为 $1.0\times10^{-10}$ s，说明当前有效区间端点在所用分辨率下稳定。离散收敛只能排除明显的网格误差，不能证明随机优化达到全局最优。
+
+\subsection{基线与优化稳定性}
+
+问题二三个随机种子中有两个到达相同最佳区域，邻域扰动均未产生更长结果。问题四从原全局搜索的 $10.743963$ s，经问题二热启动替换提高到 $11.338421$ s，再经两级联合精修达到 $11.362870$ s。问题五从历史严格可行值 $3.646796$ s 提高到 $3.743312$ s，提升约 $2.65\%$；两个时序同步种子均完整执行 $100$ 代，但均因达到预算上限停止，因此只把结果称为当前预算下的最优已知可行解。
+
+\section{模型评价}
+
+\subsection{优点}
+
+\begin{enumerate}[label=(\arabic*)]
+\item \textbf{物理与几何口径统一。} 五问共用同一运动方程和线段--球相交判据，投放点、起爆点和有效区间可由决策变量直接复算。
+\item \textbf{保留实体目标。} 主模型检查完整圆柱，避免目标中心点近似对遮蔽时长的系统性高估。
+\item \textbf{正确表达多烟团协同。} 对烟团先取“或”、对目标点再取“且”，允许多个球状云团共同覆盖目标投影。
+\item \textbf{严格处理多导弹时间语义。} 问题五在统一时间轴上计算三导弹遮蔽集合交集，避免把重叠、错位区间或不同导弹时长重复累计。
+\item \textbf{结果证据完整。} 保存随机种子、停止原因、机器精度决策变量和多档网格复算结果，便于复现和审计。
+\end{enumerate}
+
+\subsection{局限}
+
+\begin{enumerate}[label=(\arabic*)]
+\item 未考虑风、空气阻力、烟雾扩散和浓度衰减；加入这些因素后，起爆位置和有效寿命均可能改变。
+\item 完整圆柱判据依赖空间离散，虽然已做加密复算，仍属于数值近似。
+\item 差分进化等随机算法只给出有限预算下的最佳已知解，问题三和问题五尤其不能表述为已证明全局最优。
+\item 问题五的严格阶跃目标使高维搜索容易停在短公共区间，后续可采用区间可行性二分、并行多种子和自适应时间窗进一步提高结果。
+\end{enumerate}
+
+\section{结论}
+
+本文建立了统一的三维运动学与整目标视线遮蔽模型，完成五个子问题的确定性计算和协同优化。问题一固定策略的完整遮蔽时长为 $1.332802$ s；问题二单机单弹当前最优已知时长为 $4.542880$ s；问题三当前三弹可行方案为 $6.580662$ s，第三枚弹无独立贡献；问题四三机接力时长为 $11.362870$ s；问题五三枚导弹共同遮蔽的严格可行时长为 $3.743312$ s。
+
+第五问的核心结论不是“弹越多时长可直接累加”，而是只有三枚导弹的遮蔽集合在同一时刻存在交集，真目标才真正不被任意导弹观测。本文通过严格联合复算和反例审计验证了这一口径。所有结果均可由保存代码、配置和机器输出复现，其中优化结果属于给定模型与计算预算下的最佳已知可行解。
+
+\begin{thebibliography}{9}
+\bibitem{storn1997} Storn R, Price K. Differential evolution---a simple and efficient heuristic for global optimization over continuous spaces[J]. Journal of Global Optimization, 1997, 11(4): 341--359.
+\bibitem{nelder1965} Nelder J A, Mead R. A simplex method for function minimization[J]. The Computer Journal, 1965, 7(4): 308--313.
+\bibitem{jiang2018} 姜启源, 谢金星, 叶俊. 数学模型（第五版）[M]. 北京: 高等教育出版社, 2018.
+\bibitem{han2009} 韩中庚. 数学建模方法及其应用（第二版）[M]. 北京: 高等教育出版社, 2009.
+\end{thebibliography}
+
+\newpage
+\appendix
+\section{问题五投放时序}
+
+\begin{longtable}{cccccc}
+\caption{问题五十五枚烟幕弹时序}\label{tab:q5-timing}\\
+\toprule
+无人机 & 弹号 & 投放时刻（s） & 引信延迟（s） & 起爆时刻（s） & 主要贡献标记 \\
+\midrule
+\endfirsthead
+\toprule
+无人机 & 弹号 & 投放时刻（s） & 引信延迟（s） & 起爆时刻（s） & 主要贡献标记 \\
+\midrule
+\endhead
+$FY_1$ & 1 & 8.418942 & 2.886577 & 11.305519 & $M_1$ \\
+$FY_1$ & 2 & 17.196404 & 14.875260 & 32.071664 & $M_1$ \\
+$FY_1$ & 3 & 28.841466 & 9.293785 & 38.135251 & $M_1$ \\
+$FY_2$ & 1 & 6.273280 & 2.801110 & 9.074390 & $M_2$ \\
+$FY_2$ & 2 & 9.271617 & 3.037679 & 12.309297 & $M_1$ \\
+$FY_2$ & 3 & 11.929217 & 6.181324 & 18.110541 & $M_1$ \\
+$FY_3$ & 1 & 1.229410 & 3.628295 & 4.857705 & $M_1$ \\
+$FY_3$ & 2 & 18.194252 & 11.391443 & 29.585696 & $M_1$ \\
+$FY_3$ & 3 & 21.063329 & 4.055432 & 25.118761 & $M_1$ \\
+$FY_4$ & 1 & 2.537164 & 11.935511 & 14.472675 & $M_1$ \\
+$FY_4$ & 2 & 5.977205 & 11.428612 & 17.405817 & $M_3$ \\
+$FY_4$ & 3 & 8.606569 & 10.344923 & 18.951492 & $M_1$ \\
+$FY_5$ & 1 & 11.979069 & 2.744938 & 14.724008 & $M_3$ \\
+$FY_5$ & 2 & 15.188628 & 2.449183 & 17.637811 & $M_1$ \\
+$FY_5$ & 3 & 18.380978 & 2.449461 & 20.830440 & $M_1$ \\
+\bottomrule
+\end{longtable}
+
+表~\ref{tab:q5-timing}中的“主要贡献”仅用于解释；求值时每团烟雾仍同时参与三枚导弹的遮蔽判断。
+
+\section{支撑材料文件列表}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{p{0.55\textwidth}p{0.35\textwidth}}
+\toprule
+文件 & 作用 \\
+\midrule
+\path{src/models/smoke_q1_q2.py} & 问题一、二确定性计算与优化 \\
+\path{src/models/smoke_q3.py} & 问题三单机三弹协同模型 \\
+\path{src/models/smoke_q4.py} & 问题四三机联合模型 \\
+\path{src/models/smoke_q5_paper.py} & 问题五分层分配与严格联合求解 \\
+\path{src/validation/validate_q5_paper.py} & 问题五四档网格独立复算 \\
+\path{outputs/model/q1_q2/results.json} & 问题一、二机器精度结果 \\
+\path{outputs/model/q3/results.json} & 问题三当前保存策略 \\
+\path{outputs/model/q4_refined/results.json} & 问题四精修结果 \\
+\path{outputs/model/q5_paper_new/results.json} & 问题五严格共同遮蔽结果 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{各问关键代码}
+
+以下片段直接引自实际运行脚本，行号与源文件保持一致。附录仅保留与论文公式、严格判据和目标函数直接对应的部分；参数读取、文件写出及其余辅助函数见表~\ref{tab:q5-timing}后的支撑材料列表。
+
+\subsection{问题一：线段--球与完整目标判定}
+
+代码~\ref{code:q1-coverage}对应线段--球相交判据及“全部检查点均被遮挡”的完整圆柱判定。
+
+\lstinputlisting[
+  caption={问题一：单烟团完整遮蔽状态},
+  label={code:q1-coverage},
+  firstline=132,
+  lastline=159,
+  firstnumber=132
+]{src/models/smoke_q1_q2.py}
+
+\subsection{问题二：严格区间目标}
+
+代码~\ref{code:q2-objective}以精修后的有效区间长度作为优化值，返回相反数以适配最小化接口。
+
+\lstinputlisting[
+  caption={问题二：严格有效区间目标函数},
+  label={code:q2-objective},
+  firstline=351,
+  lastline=374,
+  firstnumber=351
+]{src/models/smoke_q1_q2.py}
+
+\subsection{问题三：多烟团联合遮蔽}
+
+代码~\ref{code:q3-coverage}先累积每团烟雾对目标视线的阻断状态，再对目标检查点取逻辑“且”。
+
+\lstinputlisting[
+  caption={问题三：三烟团联合完整遮蔽},
+  label={code:q3-coverage},
+  firstline=204,
+  lastline=240,
+  firstnumber=204
+]{src/models/smoke_q3.py}
+
+\subsection{问题四：严格时长优先的联合目标}
+
+代码~\ref{code:q4-objective}在出现完整遮蔽后优先比较严格时长；在尚无严格可行解时，才以部分覆盖面积和切线裕度引导搜索。
+
+\lstinputlisting[
+  caption={问题四：三机联合搜索目标},
+  label={code:q4-objective},
+  firstline=267,
+  lastline=293,
+  firstnumber=267
+]{src/models/smoke_q4.py}
+
+\subsection{问题五：三导弹交集判定}
+
+代码~\ref{code:q5-simultaneous}用 \texttt{logical\_and.reduce} 对三枚导弹的完整遮蔽序列取逻辑“且”，对应式~\eqref{eq:q5-objective}，而不是相加三条序列的时长。
+
+\lstinputlisting[
+  caption={问题五：三导弹同时完整遮蔽状态},
+  label={code:q5-simultaneous},
+  firstline=357,
+  lastline=402,
+  firstnumber=357
+]{src/models/smoke_q5.py}
+
+\end{document}

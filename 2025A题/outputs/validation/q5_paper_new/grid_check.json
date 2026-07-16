@@ -1,0 +1,92 @@
+{
+  "strategy_feasible": true,
+  "active_bomb_count": 15,
+  "grid_results": {
+    "coarse": {
+      "settings": {
+        "n_phi": 30,
+        "n_z": 7,
+        "n_radial": 5,
+        "scan_dt_s": 0.012
+      },
+      "intervals_s": [
+        [
+          15.051012184739431,
+          18.79432463628303
+        ]
+      ],
+      "duration_s": 3.7433124515435985
+    },
+    "medium": {
+      "settings": {
+        "n_phi": 60,
+        "n_z": 11,
+        "n_radial": 8,
+        "scan_dt_s": 0.006
+      },
+      "intervals_s": [
+        [
+          15.051012184739431,
+          18.79432463628303
+        ]
+      ],
+      "duration_s": 3.7433124515435985
+    },
+    "formal": {
+      "settings": {
+        "n_phi": 120,
+        "n_z": 21,
+        "n_radial": 15,
+        "scan_dt_s": 0.003
+      },
+      "intervals_s": [
+        [
+          15.051012184739431,
+          18.79432463628303
+        ]
+      ],
+      "duration_s": 3.7433124515435985
+    },
+    "fine": {
+      "settings": {
+        "n_phi": 180,
+        "n_z": 31,
+        "n_radial": 20,
+        "scan_dt_s": 0.002
+      },
+      "intervals_s": [
+        [
+          15.051012184679795,
+          18.794324636323736
+        ]
+      ],
+      "duration_s": 3.7433124516439413
+    }
+  },
+  "saved_vs_fine_abs_error_s": 1.0034284514404135e-10,
+  "timing_search_runs": [
+    {
+      "seed": 4101,
+      "success": false,
+      "message": "Maximum number of iterations has been exceeded.",
+      "iterations": 100,
+      "function_evaluations": 6060,
+      "coarse_objective": -1003.8210640858897
+    },
+    {
+      "seed": 4102,
+      "success": false,
+      "message": "Maximum number of iterations has been exceeded.",
+      "iterations": 100,
+      "function_evaluations": 6060,
+      "coarse_objective": -1003.8219162893611
+    }
+  ],
+  "all_timing_runs_completed_budget": true,
+  "constraint_checks": {
+    "feasible": true,
+    "at_most_three_bombs_per_uav": true,
+    "same_heading_and_speed_per_uav": true,
+    "drop_gaps_at_least_one_second": true
+  }
+}
