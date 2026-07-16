@@ -1,0 +1,169 @@
+{
+  "metadata": {
+    "python": "3.12.4",
+    "numpy": "2.5.1",
+    "scipy": "1.18.0",
+    "criterion": "For every target sightline, at least one active cloud must intersect the sightline before it reaches the target.",
+    "random_seeds": [
+      2025,
+      2026,
+      2027
+    ]
+  },
+  "strategy": {
+    "heading_deg": 179.54126051657255,
+    "uav_speed_mps": 139.36578564895666,
+    "drop_times_s": [
+      0.0025294912864606087,
+      3.6698776166282085,
+      11.642237653792334
+    ],
+    "fuse_delays_s": [
+      3.601315511077323,
+      5.291630369443325,
+      3.3679078994990572
+    ]
+  },
+  "bombs": [
+    {
+      "smoke_id": 1,
+      "drop_time_s": 0.0025294912864604058,
+      "fuse_delay_s": 3.601315511077323,
+      "burst_time_s": 3.6038450023637836,
+      "drop_pos_m": [
+        17799.647486758673,
+        0.002822462651893381,
+        1800.0
+      ],
+      "burst_pos_m": [
+        17297.763408074225,
+        4.021250429614244,
+        1736.449580289402
+      ],
+      "individual_full_target_intervals_s": [
+        [
+          4.952844930769993,
+          8.941511977600655
+        ]
+      ],
+      "individual_full_target_duration_s": 3.9886670468306615
+    },
+    {
+      "smoke_id": 2,
+      "drop_time_s": 3.6698776166282094,
+      "fuse_delay_s": 5.291630369443325,
+      "burst_time_s": 8.961507986071535,
+      "drop_pos_m": [
+        17288.56101587302,
+        4.094931089660724,
+        1800.0
+      ],
+      "burst_pos_m": [
+        16551.11242950569,
+        9.999449980602689,
+        1662.7933753626069
+      ],
+      "individual_full_target_intervals_s": [
+        [
+          8.961507986071535,
+          11.553884838947205
+        ]
+      ],
+      "individual_full_target_duration_s": 2.5923768528756703
+    },
+    {
+      "smoke_id": 3,
+      "drop_time_s": 11.642237653792334,
+      "fuse_delay_s": 3.3679078994990572,
+      "burst_time_s": 15.010145553291391,
+      "drop_pos_m": [
+        16177.52240792948,
+        12.990667782958594,
+        1800.0
+      ],
+      "burst_pos_m": [
+        15708.166321789582,
+        16.748654344222665,
+        1744.42026226441
+      ],
+      "individual_full_target_intervals_s": [],
+      "individual_full_target_duration_s": 0.0
+    }
+  ],
+  "joint_full_target_intervals_s": [
+    [
+      4.952844363951728,
+      8.941512106518942
+    ],
+    [
+      8.961507986071535,
+      11.553502358502428
+    ]
+  ],
+  "joint_full_target_duration_s": 6.580662114998107,
+  "union_of_individually_full_intervals_s": [
+    [
+      4.952844930769993,
+      8.941511977600655
+    ],
+    [
+      8.961507986071535,
+      11.553884838947205
+    ]
+  ],
+  "union_of_individually_full_duration_s": 6.581043899706332,
+  "joint_partial_coverage_gain_s": -0.0003817847082245862,
+  "constraint_checks": {
+    "feasible": true,
+    "shared_heading_and_speed": true,
+    "first_gap_s": 3.667348125341748,
+    "second_gap_s": 7.972360037164125,
+    "gaps_at_least_one_second": true
+  },
+  "optimization_diagnostics": {
+    "random_seeds": [
+      2025,
+      2026,
+      2027
+    ],
+    "selected_global_seed": 2026,
+    "global_runs": [
+      {
+        "seed": 2025,
+        "success": true,
+        "message": "Optimization terminated successfully.",
+        "iterations": 29,
+        "function_evaluations": 1920,
+        "coarse_objective": -104.66485248312512,
+        "local_grid_objective": -104.67157449979388
+      },
+      {
+        "seed": 2026,
+        "success": true,
+        "message": "Optimization terminated successfully.",
+        "iterations": 84,
+        "function_evaluations": 5440,
+        "coarse_objective": -106.66732831765889,
+        "local_grid_objective": -106.62712947143356
+      },
+      {
+        "seed": 2027,
+        "success": true,
+        "message": "Optimization terminated successfully.",
+        "iterations": 32,
+        "function_evaluations": 2112,
+        "coarse_objective": -104.64629079032343,
+        "local_grid_objective": -104.56549126591052
+      }
+    ],
+    "local_success": true,
+    "local_message": "Optimization terminated successfully.",
+    "local_iterations": 727,
+    "local_function_evaluations": 1346,
+    "interval_success": true,
+    "interval_message": "Optimization terminated successfully.",
+    "interval_iterations": 577,
+    "interval_function_evaluations": 1050,
+    "interval_objective": -6.601125091244526
+  }
+}

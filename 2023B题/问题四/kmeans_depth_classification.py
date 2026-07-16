@@ -294,37 +294,35 @@ def draw_kmeans_figures(
     colors = [color_hex(ZONE_COLORS[i]) for i in range(len(ranges))]
     cmap = ListedColormap(colors)
 
-    fig = plt.figure(figsize=(20.5, 9.5), facecolor="#f7fafc")
-    ax = fig.add_axes([0.055, 0.13, 0.74, 0.76])
-    panel = fig.add_axes([0.825, 0.20, 0.15, 0.60])
-    panel.set_axis_off()
+    fig = plt.figure(figsize=(12.6, 7.0), facecolor="white")
+    ax = fig.add_axes([0.075, 0.12, 0.89, 0.82])
 
     ax.contourf(smooth_x_grid, smooth_y_grid, masked_labels, levels=levels, cmap=cmap, alpha=0.94)
     if len(ranges) > 1:
         ax.contour(smooth_x_grid, smooth_y_grid, masked_labels, levels=np.arange(0.5, len(ranges), 1.0), colors="#152336", linewidths=0.65, alpha=0.9)
     ax.contour(x_grid, y_grid, depth, levels=8, colors="#ffffff", linewidths=0.35, alpha=0.45)
 
-    ax.set_title("K-means 三维特征分区图（x、y、水深）", fontsize=18, pad=14, fontweight="bold")
     ax.set_xlabel("东西方向 / n mile", fontsize=13, fontweight="bold")
     ax.set_ylabel("南北方向 / n mile", fontsize=13, fontweight="bold")
     ax.set_aspect("auto")
     ax.grid(color="white", linewidth=0.55, alpha=0.42)
 
-    panel.set_xlim(0, 1)
-    panel.set_ylim(0, 1)
-    panel.add_patch(plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor="#b9c7ce", alpha=0.94))
-    panel.text(0.08, 0.93, "结果摘要", fontsize=15, fontweight="bold", color="#0f172a")
-    panel.text(0.08, 0.83, f"K = {len(ranges)}", fontsize=11, color="#102c3d")
-    panel.text(0.08, 0.75, f"有效测深点：{np.isfinite(depth).sum()}", fontsize=11, color="#102c3d")
-    panel.text(0.08, 0.67, "聚类特征：x、y、水深", fontsize=11, color="#102c3d")
-    panel.text(0.08, 0.57, "分区说明", fontsize=13, fontweight="bold", color="#1e293b")
-    for idx, row in enumerate(ranges):
-        y0 = 0.49 - idx * 0.071
-        panel.add_patch(plt.Rectangle((0.08, y0 - 0.02), 0.07, 0.035, facecolor=colors[idx], edgecolor="#64748b", linewidth=0.7))
-        panel.text(0.18, y0 - 0.01, f"{row['cluster']}. {row['min_depth']:.1f}-{row['max_depth']:.1f} m ({row['ratio'] * 100:.1f}%)", fontsize=9.0, color="#1e293b")
+    for row in ranges:
+        ax.text(
+            row["center_x"],
+            row["center_y"],
+            f"区域 {row['cluster']}\n{row['min_depth']:.1f}--{row['max_depth']:.1f} m",
+            ha="center",
+            va="center",
+            fontsize=10.5,
+            fontweight="bold",
+            color="#172536",
+            bbox=dict(boxstyle="round,pad=0.32", facecolor="white", edgecolor="#526274", alpha=0.82),
+            zorder=5,
+        )
 
-    fig.savefig(CLUSTER_PNG_PATH, dpi=240, bbox_inches="tight", facecolor="#f7fafc")
-    fig.savefig(CLUSTER_SVG_PATH, format="svg", bbox_inches="tight", facecolor="#f7fafc")
+    fig.savefig(CLUSTER_PNG_PATH, dpi=300, bbox_inches="tight", facecolor="white")
+    fig.savefig(CLUSTER_SVG_PATH, format="svg", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 

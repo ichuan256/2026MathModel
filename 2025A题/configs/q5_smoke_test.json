@@ -1,0 +1,55 @@
+{
+  "uavs": {
+    "FY1": [17800.0, 0.0, 1800.0],
+    "FY2": [12000.0, 1400.0, 1400.0],
+    "FY3": [6000.0, -3000.0, 700.0],
+    "FY4": [11000.0, 2000.0, 1800.0],
+    "FY5": [13000.0, -2000.0, 1300.0]
+  },
+  "missiles": {
+    "M1": [20000.0, 0.0, 2000.0],
+    "M2": [19000.0, 600.0, 2100.0],
+    "M3": [18000.0, -600.0, 1900.0]
+  },
+  "optimization": {
+    "random_seeds": [2025],
+    "bounds": {
+      "heading_deg": [0.0, 360.0],
+      "speed_mps": [70.0, 140.0],
+      "first_drop_time_s": [0.0, 12.0],
+      "extra_drop_gap_s": [0.0, 12.0],
+      "fuse_delay_s": [0.0, 18.0]
+    },
+    "objective_weights": {
+      "simultaneous_duration": 1.0,
+      "simultaneous_fractional_coverage_guide": 0.01,
+      "separate_full_coverage_search_guide": 0.0001,
+      "separate_fractional_coverage_search_guide": 0.00001
+    },
+    "coarse": {
+      "n_phi": 8,
+      "n_z": 3,
+      "n_radial": 2,
+      "scan_dt_s": 0.3,
+      "population_size": 2,
+      "max_iterations": 2,
+      "tolerance": 0.0,
+      "absolute_tolerance": -1.0
+    },
+    "local": {
+      "n_phi": 8,
+      "n_z": 3,
+      "n_radial": 2,
+      "scan_dt_s": 0.2,
+      "max_iterations": 2,
+      "x_tolerance": 0.001,
+      "f_tolerance": 0.001
+    }
+  },
+  "verification": {
+    "n_phi": 12,
+    "n_z": 3,
+    "n_radial": 2,
+    "scan_dt_s": 0.05
+  }
+}

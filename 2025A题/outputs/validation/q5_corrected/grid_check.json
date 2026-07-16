@@ -1,0 +1,54 @@
+{
+  "strategy_feasible": true,
+  "active_bomb_count": 15,
+  "grid_results": {
+    "coarse_check": {
+      "settings": {
+        "n_phi": 30,
+        "n_z": 7,
+        "n_radial": 5,
+        "scan_dt_s": 0.012
+      },
+      "intervals_s": [
+        [
+          15.353466012198677,
+          19.000581912594676
+        ]
+      ],
+      "duration_s": 3.647115900395999
+    },
+    "medium_check": {
+      "settings": {
+        "n_phi": 60,
+        "n_z": 11,
+        "n_radial": 8,
+        "scan_dt_s": 0.006
+      },
+      "intervals_s": [
+        [
+          15.353466012198677,
+          19.000581912594676
+        ]
+      ],
+      "duration_s": 3.647115900395999
+    },
+    "formal_check": {
+      "settings": {
+        "n_phi": 120,
+        "n_z": 21,
+        "n_radial": 15,
+        "scan_dt_s": 0.003
+      },
+      "intervals_s": [
+        [
+          15.35357419648997,
+          19.000370510803656
+        ]
+      ],
+      "duration_s": 3.6467963143136863
+    }
+  },
+  "saved_vs_formal_abs_error_s": 0.0,
+  "completed_requested_generations": true,
+  "function_evaluations": 40080
+}

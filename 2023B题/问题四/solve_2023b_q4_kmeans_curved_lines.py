@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import math
 import random
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -297,10 +298,8 @@ def draw_layout(
     colors = [color_hex(ZONE_COLORS[i]) for i in range(len(ranges))]
     cmap = ListedColormap(colors)
 
-    fig = plt.figure(figsize=(20.5, 9.8), facecolor="#f7fafc")
-    ax = fig.add_axes([0.055, 0.13, 0.74, 0.75])
-    panel = fig.add_axes([0.825, 0.18, 0.15, 0.66])
-    panel.set_axis_off()
+    fig = plt.figure(figsize=(12.8, 7.2), facecolor="white")
+    ax = fig.add_axes([0.075, 0.12, 0.89, 0.82])
 
     ax.contourf(smooth_x_grid, smooth_y_grid, masked_labels, levels=label_levels, cmap=cmap, alpha=0.78)
     if len(ranges) > 1:
@@ -428,44 +427,30 @@ def draw_layout(
             halo_alpha=0.52,
         )
 
-    ax.set_title("问题四：三维 K-means 分区曲线测线布设结果", fontsize=18, pad=14, fontweight="bold")
     ax.set_xlabel("东西方向 / n mile", fontsize=13, fontweight="bold")
     ax.set_ylabel("南北方向 / n mile", fontsize=13, fontweight="bold")
     ax.set_aspect("auto")
     ax.grid(color="white", linewidth=0.55, alpha=0.42)
 
-    panel.set_xlim(0, 1)
-    panel.set_ylim(0, 1)
-    panel.add_patch(plt.Rectangle((0, 0), 1, 1, facecolor="white", edgecolor="#b9c7ce", alpha=0.94))
-    panel.text(0.07, 0.94, "结果摘要", fontsize=14, fontweight="bold", color="#0f172a")
-    info = [
-        f"K-means 分区数：{len(ranges)}",
-        f"测线数量：{summary['line_count']} 条",
-        f"测线总长：{summary['total_length_nm']:.3f} n mile",
-        f"未覆盖比例：{summary['uncovered_ratio'] * 100:.3f}%",
-        f"超 20% 重叠长度：{summary['overlap_excess_length_nm']:.3f} n mile",
-        f"迭代代数：{iterations_used}",
-    ]
-    for index, item in enumerate(info):
-        panel.text(0.07, 0.87 - index * 0.055, item, fontsize=9.5, color="#102c3d")
-
-    panel.text(0.07, 0.50, "颜色说明", fontsize=13, fontweight="bold", color="#1e293b")
     legend_items = [
         Patch(facecolor=COVERAGE_COLOR, edgecolor="#64748b", label="蓝色：测线覆盖区域", alpha=0.56),
         Patch(facecolor=OVERLAP_COLOR, edgecolor="#64748b", label="橙色：重叠覆盖区域", alpha=0.76),
         Line2D([0], [0], color=OVERLAP_COLOR, linewidth=2.6, label="橙色线：重叠中心带"),
         Line2D([0], [0], color=SURVEY_LINE_COLOR, linewidth=2.0, label="白色线：实际测线"),
     ]
-    panel.legend(handles=legend_items, loc="upper left", bbox_to_anchor=(0.05, 0.48), frameon=False, fontsize=8.8)
+    ax.legend(
+        handles=legend_items,
+        loc="upper right",
+        frameon=True,
+        framealpha=0.88,
+        facecolor="white",
+        edgecolor="#9aa6b2",
+        fontsize=8.8,
+        ncol=2,
+    )
 
-    panel.text(0.07, 0.26, "三维 K-means 分区", fontsize=13, fontweight="bold", color="#1e293b")
-    for idx, row in enumerate(ranges):
-        y0 = 0.20 - idx * 0.050
-        panel.add_patch(plt.Rectangle((0.07, y0 - 0.015), 0.06, 0.030, facecolor=colors[idx], edgecolor="#64748b", linewidth=0.6))
-        panel.text(0.16, y0 - 0.010, f"区 {idx + 1}: {row['min_depth']:.1f}-{row['max_depth']:.1f} m", fontsize=8.2, color="#1e293b")
-
-    fig.savefig(OUTPUT_PNG, dpi=240, bbox_inches="tight", facecolor="#f7fafc")
-    fig.savefig(OUTPUT_SVG, format="svg", bbox_inches="tight", facecolor="#f7fafc")
+    fig.savefig(OUTPUT_PNG, dpi=300, bbox_inches="tight", facecolor="white")
+    fig.savefig(OUTPUT_SVG, format="svg", bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
 
@@ -550,5 +535,43 @@ def main() -> None:
     print("saved_svg:", OUTPUT_SVG)
 
 
+def redraw_existing_outputs() -> None:
+    """Redraw the saved optimized layout without rerunning the PSO search."""
+    x, y, depth = read_bathymetry_grid()
+    _, selected_k = elbow_analysis(x, y, depth, draw_plot=False)
+    labels, centers, _, _ = kmeans_xyz(x, y, depth, selected_k)
+    ranges = cluster_ranges(depth, labels, centers)
+
+    lanes = []
+    with OUTPUT_LINES_CSV.open("r", encoding="utf-8-sig", newline="") as file:
+        for row in csv.DictReader(file):
+            lanes.append(
+                {
+                    "cluster": int(row["region"]),
+                    "lane_index": int(row["lane_index"]),
+                    "center_depth": float(row["center_depth_m"]),
+                    "deep_edge": float(row["deep_edge_m"]),
+                    "shallow_edge": float(row["shallow_edge_m"]),
+                    "length_nm": float(row["length_nm"]),
+                    "eta_target": float(row["eta_target"]),
+                }
+            )
+
+    metrics = {}
+    with OUTPUT_SUMMARY_CSV.open("r", encoding="utf-8-sig", newline="") as file:
+        for row in csv.DictReader(file):
+            metrics[row["metric"]] = float(row["value"])
+    summary = {
+        "total_length_nm": metrics["total_length_nm"],
+        "line_count": int(metrics["line_count"]),
+        "uncovered_ratio": metrics["uncovered_ratio_percent"] / 100.0,
+        "overlap_excess_length_nm": metrics["overlap_excess_length_nm"],
+    }
+    draw_layout(x, y, depth, labels, centers, ranges, lanes, summary, int(metrics["iterations_used"]))
+
+
 if __name__ == "__main__":
-    main()
+    if "--redraw" in sys.argv:
+        redraw_existing_outputs()
+    else:
+        main()

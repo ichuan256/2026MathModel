@@ -1,0 +1,119 @@
+{
+  "metadata": {
+    "python": "3.12.4",
+    "numpy": "2.5.1",
+    "scipy": "1.18.0",
+    "config": "C:\\Users\\94952\\2026MathModel\\2025A题\\configs\\q1_q2.json",
+    "criterion": "Every line of sight from the missile to the cylindrical target must intersect the cloud sphere before reaching the target."
+  },
+  "constants": {
+    "gravity_mps2": 9.8,
+    "missile_speed_mps": 300.0,
+    "cloud_radius_m": 10.0,
+    "cloud_lifetime_s": 20.0,
+    "cloud_sink_speed_mps": 3.0,
+    "target_radius_m": 7.0,
+    "target_height_m": 10.0,
+    "target_base_center_m": [
+      0.0,
+      200.0,
+      0.0
+    ],
+    "missile_pos0_m": [
+      20000.0,
+      0.0,
+      2000.0
+    ],
+    "uav_pos0_m": [
+      17800.0,
+      0.0,
+      1800.0
+    ]
+  },
+  "missile_arrival_s": 66.99917080747261,
+  "question_1": {
+    "name": "question_1",
+    "strategy": {
+      "heading_deg": 180.0,
+      "uav_speed_mps": 120.0,
+      "burst_time_s": 5.1,
+      "fuse_delay_s": 3.6
+    },
+    "drop_time_s": 1.4999999999999996,
+    "drop_pos_m": [
+      17620.0,
+      2.2043642384652352e-14,
+      1800.0
+    ],
+    "burst_pos_m": [
+      17188.0,
+      7.494838410781801e-14,
+      1736.496
+    ],
+    "strict_full_target_intervals_s": [
+      [
+        8.056445490431507,
+        9.389247539873384
+      ]
+    ],
+    "strict_full_target_duration_s": 1.3328020494418773,
+    "center_line_intervals_s": [
+      [
+        8.013006056738668,
+        9.389247539873384
+      ]
+    ],
+    "center_line_duration_s": 1.3762414831347165,
+    "constraint_checks": {
+      "feasible": true,
+      "speed_in_range": true,
+      "drop_time_nonnegative": true,
+      "burst_height_nonnegative": true,
+      "burst_before_missile_arrival": true
+    }
+  },
+  "question_2": {
+    "name": "question_2",
+    "strategy": {
+      "heading_deg": 176.64312087554433,
+      "uav_speed_mps": 70.0,
+      "burst_time_s": 2.497073209267281,
+      "fuse_delay_s": 2.497073209267281
+    },
+    "drop_time_s": 0.0,
+    "drop_pos_m": [
+      17800.0,
+      0.0,
+      1800.0
+    ],
+    "burst_pos_m": [
+      17625.50479245056,
+      10.235142560585064,
+      1769.446664399042
+    ],
+    "strict_full_target_intervals_s": [
+      [
+        2.4970732188862357,
+        7.03995218682504
+      ]
+    ],
+    "strict_full_target_duration_s": 4.542878967938805,
+    "center_line_intervals_s": [
+      [
+        2.497073209267281,
+        7.0697350303039705
+      ]
+    ],
+    "center_line_duration_s": 4.572661821036689,
+    "constraint_checks": {
+      "feasible": true,
+      "speed_in_range": true,
+      "drop_time_nonnegative": true,
+      "burst_height_nonnegative": true,
+      "burst_before_missile_arrival": true
+    }
+  },
+  "optimization_diagnostics": {
+    "used_stored_strategy": true
+  }
+}

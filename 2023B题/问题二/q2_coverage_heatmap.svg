@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1090" height="778" viewBox="0 0 1090 778">
-<style><![CDATA[text{font-family:'Microsoft YaHei','SimHei',Arial,sans-serif}.thin{vector-effect:non-scaling-stroke}.fixed-label{font-size:14px;vector-effect:non-scaling-size}.title{font-size:30px;font-weight:700}.head{font-size:18px;font-weight:700}.cell{font-size:17px}]]></style>
+<style><![CDATA[text{font-family:'Microsoft YaHei','SimHei',Arial,sans-serif}.thin{vector-effect:non-scaling-stroke}.fixed-label{font-size:14px}.title{font-size:30px;font-weight:700}.head{font-size:18px;font-weight:700}.cell{font-size:17px}]]></style>
 <rect width="1090" height="778" fill="#f8fafc"/>
 <text x="36" y="58" class="title" fill="#14202c">问题二：多波束覆盖宽度计算结果</text>
 <text x="36" y="92" class="fixed-label" fill="#475569">主表采用斜面实际覆盖宽度 Ws；参数：开角120°，坡度1.5°，中心水深120 m</text>

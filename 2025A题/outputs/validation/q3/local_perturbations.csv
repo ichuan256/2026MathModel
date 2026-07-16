@@ -1,0 +1,7 @@
+﻿perturbation,feasible,joint_duration_s
+base,True,6.580748207197894
+heading_minus_0.05_deg,True,6.322066471161616
+heading_plus_0.05_deg,True,6.472523700472891
+speed_minus_0.25_mps,True,6.55648429502112
+speed_plus_0.25_mps,True,6.596359285545027
+second_fuse_plus_0.02_s,True,6.555704046366506
