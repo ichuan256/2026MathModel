@@ -1,0 +1,3 @@
+﻿selection_rule,FY1,FY2,FY3,FY4,FY5,proxy_sum_T_ij_s,strict_joint_duration_s,strict_joint_objective
+paper_proxy_best,M1,M2,M1,M1,M3,10.97005781017933,3.658560872529894,-1003.7004428492091
+strict_joint_best,M2,M2,M3,M1,M3,10.97005781017933,3.659348053164254,-1003.7012337324345

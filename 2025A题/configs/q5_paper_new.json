@@ -12,12 +12,13 @@
     "M3": [18000.0, -600.0, 1900.0]
   },
   "optimization": {
-    "random_seeds": [2025],
+    "random_seeds": [4101, 4102],
+    "warm_start_results": ["outputs/model/q5_corrected/results.json"],
     "bounds": {
       "heading_deg": [0.0, 360.0],
       "speed_mps": [70.0, 140.0],
-      "first_drop_time_s": [0.0, 12.0],
-      "extra_drop_gap_s": [0.0, 12.0],
+      "first_drop_time_s": [0.0, 18.0],
+      "extra_drop_gap_s": [0.0, 16.0],
       "fuse_delay_s": [0.0, 18.0]
     },
     "objective_weights": {
@@ -28,49 +29,54 @@
     },
     "paper_decomposition": {
       "enabled": true,
-      "random_seed": 2025,
-      "n_phi": 8,
+      "random_seed": 5200,
+      "n_phi": 10,
       "n_z": 3,
       "n_radial": 2,
-      "scan_dt_s": 0.3,
+      "scan_dt_s": 0.20,
       "population_size": 2,
-      "max_iterations": 2,
+      "max_iterations": 30,
       "tolerance": 0.0,
       "absolute_tolerance": -1.0,
-      "local_n_phi": 8,
-      "local_n_z": 3,
-      "local_n_radial": 2,
-      "local_scan_dt_s": 0.2,
-      "local_max_iterations": 0,
-      "local_x_tolerance": 0.001,
-      "local_f_tolerance": 0.001,
-      "joint_rescore_count": 30,
-      "seed_assignment_count": 6
+      "local_n_phi": 20,
+      "local_n_z": 5,
+      "local_n_radial": 3,
+      "local_scan_dt_s": 0.06,
+      "local_max_iterations": 8,
+      "local_x_tolerance": 0.0001,
+      "local_f_tolerance": 0.0001,
+      "joint_rescore_count": 150,
+      "seed_assignment_count": 12
     },
-    "coarse": {
-      "n_phi": 8,
-      "n_z": 3,
-      "n_radial": 2,
-      "scan_dt_s": 0.3,
+    "timing_search": {
+      "random_seeds": [4101, 4102],
       "population_size": 2,
-      "max_iterations": 2,
+      "max_iterations": 100,
       "tolerance": 0.0,
       "absolute_tolerance": -1.0
     },
-    "local": {
-      "n_phi": 8,
+    "coarse": {
+      "n_phi": 10,
       "n_z": 3,
       "n_radial": 2,
-      "scan_dt_s": 0.2,
-      "max_iterations": 2,
-      "x_tolerance": 0.001,
-      "f_tolerance": 0.001
+      "scan_dt_s": 0.18
+    },
+    "local": {
+      "n_phi": 30,
+      "n_z": 7,
+      "n_radial": 5,
+      "scan_dt_s": 0.03
+    },
+    "joint_local": {
+      "max_iterations": 0,
+      "x_tolerance": 0.00001,
+      "f_tolerance": 0.00001
     }
   },
   "verification": {
-    "n_phi": 12,
-    "n_z": 3,
-    "n_radial": 2,
-    "scan_dt_s": 0.05
+    "n_phi": 120,
+    "n_z": 21,
+    "n_radial": 15,
+    "scan_dt_s": 0.003
   }
 }

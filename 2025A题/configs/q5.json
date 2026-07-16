@@ -26,6 +26,27 @@
       "separate_full_coverage_search_guide": 0.0001,
       "separate_fractional_coverage_search_guide": 0.00001
     },
+    "paper_decomposition": {
+      "enabled": true,
+      "random_seed": 2025,
+      "n_phi": 12,
+      "n_z": 3,
+      "n_radial": 2,
+      "scan_dt_s": 0.15,
+      "population_size": 3,
+      "max_iterations": 120,
+      "tolerance": 0.0,
+      "absolute_tolerance": -1.0,
+      "local_n_phi": 24,
+      "local_n_z": 5,
+      "local_n_radial": 4,
+      "local_scan_dt_s": 0.05,
+      "local_max_iterations": 40,
+      "local_x_tolerance": 0.0001,
+      "local_f_tolerance": 0.0001,
+      "joint_rescore_count": 150,
+      "seed_assignment_count": 12
+    },
     "coarse": {
       "n_phi": 12,
       "n_z": 3,

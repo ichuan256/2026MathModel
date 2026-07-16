@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import itertools
 import json
 import math
 import platform
@@ -35,7 +36,7 @@ from smoke_q3 import target_surface_points  # noqa: E402
 
 
 DEFAULT_CONFIG = PROBLEM_ROOT / "configs" / "q5.json"
-DEFAULT_OUTPUT_DIR = PROBLEM_ROOT / "outputs" / "model" / "q5_corrected"
+DEFAULT_OUTPUT_DIR = PROBLEM_ROOT / "outputs" / "model" / "q5_paper"
 UAV_IDS = ("FY1", "FY2", "FY3", "FY4", "FY5")
 MISSILE_IDS = ("M1", "M2", "M3")
 VARIABLES_PER_UAV = 8
@@ -127,6 +128,37 @@ def encode_strategy(strategy: Q5Strategy) -> np.ndarray:
             ]
         )
     return np.asarray(values, dtype=float)
+
+
+def decode_uav_vector(x: np.ndarray, uav_id: str) -> tuple[BombPlan, ...]:
+    """Decode one UAV's eight variables into its three smoke bombs."""
+    heading = float(x[0] % 360.0)
+    speed = float(x[1])
+    drop1 = float(x[2])
+    drops = (
+        drop1,
+        drop1 + 1.0 + float(x[3]),
+        drop1 + 2.0 + float(x[3]) + float(x[4]),
+    )
+    return tuple(
+        BombPlan(
+            uav_id=uav_id,
+            smoke_id=slot + 1,
+            target_id="ALL",
+            heading_deg=heading,
+            speed_mps=speed,
+            drop_time_s=drops[slot],
+            fuse_delay_s=float(x[5 + slot]),
+        )
+        for slot in range(3)
+    )
+
+
+def combine_uav_vectors(vectors: dict[str, np.ndarray]) -> np.ndarray:
+    """Concatenate five eight-variable UAV plans in the canonical order."""
+    return np.concatenate(
+        [np.asarray(vectors[uav_id], dtype=float) for uav_id in UAV_IDS]
+    )
 
 
 def missile_arrival_s(missile_start_m: np.ndarray, c: Constants) -> float:
@@ -541,6 +573,98 @@ def points_from_settings(settings: dict, c: Constants) -> np.ndarray:
     )
 
 
+def single_pair_is_feasible(
+    bombs: tuple[BombPlan, ...],
+    c: Constants,
+    uavs: dict[str, np.ndarray],
+    missiles: dict[str, np.ndarray],
+) -> bool:
+    """Check the physical constraints of one UAV/three-bomb subproblem."""
+    if len(bombs) != 3:
+        return False
+    if not 70.0 <= bombs[0].speed_mps <= 140.0:
+        return False
+    for left, right in zip(bombs, bombs[1:]):
+        if right.drop_time_s - left.drop_time_s < 1.0 - 1.0e-12:
+            return False
+    latest_burst = min(
+        missile_arrival_s(start, c) for start in missiles.values()
+    )
+    for bomb in bombs:
+        if bomb.drop_time_s < 0.0 or bomb.fuse_delay_s < 0.0:
+            return False
+        if float(bomb_geometry(bomb, uavs[bomb.uav_id], c)["burst_pos_m"][2]) < 0.0:
+            return False
+        if bomb.burst_time_s > latest_burst:
+            return False
+    return True
+
+
+class SinglePairObjective:
+    """Question-3-like objective for one UAV against one missile."""
+
+    def __init__(
+        self,
+        c: Constants,
+        uavs: dict[str, np.ndarray],
+        missiles: dict[str, np.ndarray],
+        uav_id: str,
+        missile_id: str,
+        settings: dict,
+    ):
+        self.c = c
+        self.uavs = uavs
+        self.missiles = missiles
+        self.uav_id = uav_id
+        self.missile_id = missile_id
+        self.points = points_from_settings(settings, c)
+        self.dt = float(settings["scan_dt_s"])
+
+    def metrics(self, x: np.ndarray) -> dict[str, float]:
+        bombs = decode_uav_vector(x, self.uav_id)
+        if not single_pair_is_feasible(bombs, self.c, self.uavs, self.missiles):
+            return {
+                "full_duration_s": 0.0,
+                "fractional_coverage_area_s": 0.0,
+                "maximum_margin_m2": -1.0e12,
+            }
+        start = min(bomb.burst_time_s for bomb in bombs)
+        end = min(
+            max(bomb.burst_time_s + self.c.cloud_lifetime_s for bomb in bombs),
+            missile_arrival_s(self.missiles[self.missile_id], self.c),
+        )
+        if end <= start:
+            return {
+                "full_duration_s": 0.0,
+                "fractional_coverage_area_s": 0.0,
+                "maximum_margin_m2": -1.0e12,
+            }
+        count = max(2, int(math.ceil((end - start) / self.dt)) + 1)
+        times = np.linspace(start, end, count)
+        full, fraction, guide = coverage_series_for_missile(
+            times,
+            list(bombs),
+            self.missiles[self.missile_id],
+            self.c,
+            self.uavs,
+            self.points,
+        )
+        return {
+            "full_duration_s": float(np.trapezoid(full.astype(float), times)),
+            "fractional_coverage_area_s": float(np.trapezoid(fraction, times)),
+            "maximum_margin_m2": float(np.max(guide)),
+        }
+
+    def __call__(self, x: np.ndarray) -> float:
+        metrics = self.metrics(x)
+        duration = metrics["full_duration_s"]
+        fractional = metrics["fractional_coverage_area_s"]
+        margin = metrics["maximum_margin_m2"]
+        if duration > 0.0:
+            return -1_000.0 - duration - 1.0e-4 * fractional
+        return -fractional - 1.0e-8 * max(margin, -1.0e8)
+
+
 class GridObjective:
     def __init__(self, c, config, uavs, missiles, settings):
         self.c = c
@@ -656,6 +780,287 @@ def geometric_baseline(
     return Q5Strategy(tuple(bombs))
 
 
+def strategy_from_results(path: Path) -> Q5Strategy:
+    """Load a previously verified strategy as a reproducible warm start."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    records = payload.get("active_bombs", [])
+    lookup = {
+        (str(record["uav_id"]), int(record["smoke_id"])): record
+        for record in records
+    }
+    bombs = []
+    for uav_id in UAV_IDS:
+        for smoke_id in range(1, 4):
+            record = lookup.get((uav_id, smoke_id))
+            if record is None:
+                raise ValueError(
+                    f"Warm-start file {path} lacks {uav_id} smoke {smoke_id}."
+                )
+            bombs.append(
+                BombPlan(
+                    uav_id=uav_id,
+                    smoke_id=smoke_id,
+                    target_id="ALL",
+                    heading_deg=float(record["heading_deg"]),
+                    speed_mps=float(record["speed_mps"]),
+                    drop_time_s=float(record["drop_time_s"]),
+                    fuse_delay_s=float(record["fuse_delay_s"]),
+                )
+            )
+    return Q5Strategy(tuple(bombs))
+
+
+def optimize_single_pair(
+    c: Constants,
+    config: dict,
+    uavs: dict[str, np.ndarray],
+    missiles: dict[str, np.ndarray],
+    uav_id: str,
+    missile_id: str,
+    fallback_x: np.ndarray,
+    pair_index: int,
+) -> tuple[np.ndarray, dict]:
+    """Solve one of the 5 x 3 single-UAV/single-missile subproblems."""
+    paper = config["optimization"]["paper_decomposition"]
+    bounds = make_bounds(config, uavs, c)
+    start = UAV_IDS.index(uav_id) * VARIABLES_PER_UAV
+    pair_bounds = bounds[start : start + VARIABLES_PER_UAV]
+    lower = np.asarray([value[0] for value in pair_bounds], dtype=float)
+    upper = np.asarray([value[1] for value in pair_bounds], dtype=float)
+    fallback_x = np.clip(np.asarray(fallback_x, dtype=float), lower, upper)
+    seed = int(paper["random_seed"]) + pair_index
+    rng = np.random.default_rng(seed)
+    population_count = max(
+        5, int(paper["population_size"]) * VARIABLES_PER_UAV
+    )
+    scale = np.asarray([12.0, 6.0, 1.0, 1.0, 1.0, 0.8, 0.8, 0.8])
+    init_population = fallback_x + rng.normal(
+        0.0, scale, size=(population_count, VARIABLES_PER_UAV)
+    )
+    random_count = max(1, population_count // 4)
+    init_population[-random_count:] = rng.uniform(
+        lower, upper, size=(random_count, VARIABLES_PER_UAV)
+    )
+    init_population = np.clip(init_population, lower, upper)
+    init_population[0] = fallback_x
+
+    coarse_settings = {
+        "n_phi": paper["n_phi"],
+        "n_z": paper["n_z"],
+        "n_radial": paper["n_radial"],
+        "scan_dt_s": paper["scan_dt_s"],
+    }
+    coarse_objective = SinglePairObjective(
+        c, uavs, missiles, uav_id, missile_id, coarse_settings
+    )
+    global_result = differential_evolution(
+        coarse_objective,
+        bounds=pair_bounds,
+        init=init_population,
+        x0=fallback_x,
+        seed=seed,
+        popsize=int(paper["population_size"]),
+        maxiter=int(paper["max_iterations"]),
+        tol=float(paper["tolerance"]),
+        atol=float(paper.get("absolute_tolerance", 0.0)),
+        mutation=(0.5, 1.0),
+        recombination=0.85,
+        polish=False,
+        workers=1,
+        updating="immediate",
+    )
+
+    local_settings = {
+        "n_phi": paper.get("local_n_phi", paper["n_phi"]),
+        "n_z": paper.get("local_n_z", paper["n_z"]),
+        "n_radial": paper.get("local_n_radial", paper["n_radial"]),
+        "scan_dt_s": paper.get("local_scan_dt_s", paper["scan_dt_s"]),
+    }
+    local_objective = SinglePairObjective(
+        c, uavs, missiles, uav_id, missile_id, local_settings
+    )
+    candidates = [fallback_x, np.asarray(global_result.x, dtype=float)]
+    local_result = None
+    if int(paper.get("local_max_iterations", 0)) > 0:
+        local_result = minimize(
+            local_objective,
+            global_result.x,
+            method="Powell",
+            bounds=pair_bounds,
+            options={
+                "maxiter": int(paper["local_max_iterations"]),
+                "xtol": float(paper.get("local_x_tolerance", 1.0e-4)),
+                "ftol": float(paper.get("local_f_tolerance", 1.0e-4)),
+            },
+        )
+        candidates.append(np.asarray(local_result.x, dtype=float))
+    candidate_scores = [float(local_objective(value)) for value in candidates]
+    best_x = candidates[int(np.argmin(candidate_scores))]
+    metrics = local_objective.metrics(best_x)
+    result_record = {
+        "uav_id": uav_id,
+        "missile_id": missile_id,
+        "seed": seed,
+        "T_ij_s": metrics["full_duration_s"],
+        "fractional_coverage_area_s": metrics["fractional_coverage_area_s"],
+        "maximum_margin_m2": metrics["maximum_margin_m2"],
+        "decision_vector": best_x.tolist(),
+        "global_success": bool(global_result.success),
+        "global_message": str(global_result.message),
+        "global_iterations": int(global_result.nit),
+        "global_function_evaluations": int(global_result.nfev),
+        "local_success": None if local_result is None else bool(local_result.success),
+        "local_message": None if local_result is None else str(local_result.message),
+        "local_iterations": None if local_result is None else int(local_result.nit),
+        "local_function_evaluations": None
+        if local_result is None
+        else int(local_result.nfev),
+    }
+    return best_x, result_record
+
+
+def paper_assignment_warm_start(
+    c: Constants,
+    config: dict,
+    uavs: dict[str, np.ndarray],
+    missiles: dict[str, np.ndarray],
+    fallback_x: np.ndarray,
+) -> tuple[np.ndarray, list[np.ndarray], dict]:
+    """Apply the excellent-paper decomposition, then repair its time metric.
+
+    The paper-style assignment maximizes sum(T_ij).  Because that proxy does
+    not guarantee temporal overlap across the three missiles, the best proxy
+    assignments are re-ranked with the strict common-time objective before
+    they seed the final 40-dimensional search.
+    """
+    paper = config["optimization"]["paper_decomposition"]
+    pair_vectors: dict[tuple[str, str], np.ndarray] = {}
+    pair_records = []
+    pair_index = 0
+    for uav_id in UAV_IDS:
+        base = UAV_IDS.index(uav_id) * VARIABLES_PER_UAV
+        fallback_chunk = fallback_x[base : base + VARIABLES_PER_UAV]
+        for missile_id in MISSILE_IDS:
+            vector, record = optimize_single_pair(
+                c,
+                config,
+                uavs,
+                missiles,
+                uav_id,
+                missile_id,
+                fallback_chunk,
+                pair_index,
+            )
+            pair_vectors[(uav_id, missile_id)] = vector
+            pair_records.append(record)
+            pair_index += 1
+            print(
+                f"pair={uav_id}-{missile_id} T_ij={record['T_ij_s']:.6f}s "
+                f"nfev={record['global_function_evaluations']}",
+                flush=True,
+            )
+
+    tij = {
+        (record["uav_id"], record["missile_id"]): float(record["T_ij_s"])
+        for record in pair_records
+    }
+    assignments = []
+    for targets in itertools.product(MISSILE_IDS, repeat=len(UAV_IDS)):
+        if len(set(targets)) != len(MISSILE_IDS):
+            continue
+        mapping = dict(zip(UAV_IDS, targets))
+        vector = combine_uav_vectors(
+            {uav_id: pair_vectors[(uav_id, mapping[uav_id])] for uav_id in UAV_IDS}
+        )
+        assignments.append(
+            {
+                "mapping": mapping,
+                "proxy_sum_T_ij_s": float(
+                    sum(tij[(uav_id, mapping[uav_id])] for uav_id in UAV_IDS)
+                ),
+                "vector": vector,
+            }
+        )
+    assignments.sort(
+        key=lambda value: (
+            -value["proxy_sum_T_ij_s"],
+            tuple(value["mapping"][uav_id] for uav_id in UAV_IDS),
+        )
+    )
+    paper_best = assignments[0]
+
+    rescore_count = min(
+        len(assignments), int(paper.get("joint_rescore_count", len(assignments)))
+    )
+    joint_objective = GridObjective(
+        c, config, uavs, missiles, config["optimization"]["local"]
+    )
+    joint_points = joint_objective.points
+    joint_dt = joint_objective.dt
+    rescored = []
+    for item in assignments[:rescore_count]:
+        objective = float(joint_objective(item["vector"]))
+        duration, simultaneous_fraction, _, _, _ = simultaneous_grid_metrics(
+            decode_vector(item["vector"]),
+            c,
+            uavs,
+            missiles,
+            joint_points,
+            joint_dt,
+        )
+        rescored.append(
+            {
+                **item,
+                "strict_joint_objective": objective,
+                "strict_joint_duration_s": duration,
+                "strict_joint_fractional_area_s": simultaneous_fraction,
+            }
+        )
+    rescored.sort(
+        key=lambda value: (
+            value["strict_joint_objective"],
+            -value["proxy_sum_T_ij_s"],
+        )
+    )
+    strict_best = rescored[0]
+    seed_count = min(
+        len(rescored), int(paper.get("seed_assignment_count", 12))
+    )
+    seed_vectors = [item["vector"] for item in rescored[:seed_count]]
+
+    def assignment_record(item: dict) -> dict:
+        return {
+            "mapping": item["mapping"],
+            "proxy_sum_T_ij_s": item["proxy_sum_T_ij_s"],
+            "strict_joint_objective": item.get("strict_joint_objective"),
+            "strict_joint_duration_s": item.get("strict_joint_duration_s"),
+            "strict_joint_fractional_area_s": item.get(
+                "strict_joint_fractional_area_s"
+            ),
+        }
+
+    paper_best_rescored = next(
+        (
+            item
+            for item in rescored
+            if item["mapping"] == paper_best["mapping"]
+        ),
+        paper_best,
+    )
+    diagnostics = {
+        "method": "15 single-UAV/single-missile three-bomb subproblems, 0-1 assignment, strict common-time re-scoring",
+        "proxy_definition": "T_ij is the full-target concealment duration of UAV i's three bombs against missile j.",
+        "proxy_limitation": "sum(T_ij) is used only for assignment ranking; it is not reported as the final concealment duration.",
+        "pair_records": pair_records,
+        "feasible_assignment_count": len(assignments),
+        "joint_rescore_count": rescore_count,
+        "paper_proxy_best_assignment": assignment_record(paper_best_rescored),
+        "strict_joint_best_assignment": assignment_record(strict_best),
+        "seed_assignment_count": seed_count,
+    }
+    return np.asarray(strict_best["vector"]), seed_vectors, diagnostics
+
+
 def optimize(
     c: Constants,
     config: dict,
@@ -664,8 +1069,45 @@ def optimize(
 ) -> tuple[Q5Strategy, dict]:
     settings = config["optimization"]
     bounds = make_bounds(config, uavs, c)
-    baseline = geometric_baseline(uavs, c)
-    baseline_x = encode_strategy(baseline)
+    fallback = geometric_baseline(uavs, c)
+    fallback_x = encode_strategy(fallback)
+    start_candidates = [("geometric_fallback", fallback_x)]
+    for configured_path in settings.get("warm_start_results", []):
+        path = Path(configured_path)
+        if not path.is_absolute():
+            path = PROBLEM_ROOT / path
+        strategy = strategy_from_results(path)
+        if not strategy_is_feasible(strategy, c, uavs, missiles):
+            raise ValueError(f"Warm-start strategy is infeasible: {path}")
+        start_candidates.append((str(path), encode_strategy(strategy)))
+    paper_diagnostics = None
+    assignment_seed_vectors: list[np.ndarray] = []
+    if settings.get("paper_decomposition", {}).get("enabled", False):
+        paper_x, assignment_seed_vectors, paper_diagnostics = (
+            paper_assignment_warm_start(
+                c, config, uavs, missiles, fallback_x
+            )
+        )
+        start_candidates.append(("paper_assignment", paper_x))
+        assignment_seed_vectors = [paper_x, *assignment_seed_vectors]
+    preselection_objective = GridObjective(
+        c, config, uavs, missiles, settings["local"]
+    )
+    start_scores = [
+        (float(preselection_objective(vector)), name, vector)
+        for name, vector in start_candidates
+    ]
+    baseline_score, baseline_name, baseline_x = min(
+        start_scores, key=lambda item: item[0]
+    )
+    if paper_diagnostics is not None:
+        paper_diagnostics["warm_start_preselection"] = {
+            "candidates": [
+                {"name": name, "objective": score}
+                for score, name, _ in start_scores
+            ],
+            "selected": baseline_name,
+        }
     coarse = settings["coarse"]
     coarse_objective = GridObjective(c, config, uavs, missiles, coarse)
     global_runs = []
@@ -676,28 +1118,40 @@ def optimize(
         )
         lower = np.asarray([item[0] for item in bounds], dtype=float)
         upper = np.asarray([item[1] for item in bounds], dtype=float)
-        one_uav_scale = np.asarray(
-            [0.02, 0.5, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
-            dtype=float,
+        tight_scale = np.tile(
+            np.asarray([0.30, 2.0, 0.25, 0.35, 0.35, 0.25, 0.25, 0.25]),
+            len(UAV_IDS),
         )
-        tight_scale = np.tile(one_uav_scale, len(UAV_IDS))
-        init_population = np.empty((population_count, len(bounds)), dtype=float)
-        tight_count = max(2, int(round(0.85 * population_count)))
-        medium_count = max(1, int(round(0.10 * population_count)))
-        init_population[:tight_count] = baseline_x + rng.normal(
-            0.0, tight_scale, size=(tight_count, len(bounds))
+        medium_scale = np.tile(
+            np.asarray([4.0, 8.0, 1.50, 2.00, 2.00, 1.50, 1.50, 1.50]),
+            len(UAV_IDS),
         )
-        medium_end = min(population_count, tight_count + medium_count)
-        init_population[tight_count:medium_end] = baseline_x + rng.normal(
-            0.0,
-            8.0 * tight_scale,
-            size=(medium_end - tight_count, len(bounds)),
+        init_population = rng.uniform(
+            lower, upper, size=(population_count, len(bounds))
         )
-        if medium_end < population_count:
-            init_population[medium_end:] = rng.uniform(
-                lower,
-                upper,
-                size=(population_count - medium_end, len(bounds)),
+        seed_vectors = [
+            baseline_x,
+            *[vector for _, vector in start_candidates],
+            *assignment_seed_vectors,
+        ]
+        seed_count = min(len(seed_vectors), population_count)
+        for row in range(seed_count):
+            init_population[row] = seed_vectors[row]
+        remaining = population_count - seed_count
+        tight_count = int(round(0.40 * remaining))
+        medium_count = int(round(0.35 * remaining))
+        tight_start = seed_count
+        tight_end = tight_start + tight_count
+        medium_end = min(population_count, tight_end + medium_count)
+        if tight_end > tight_start:
+            init_population[tight_start:tight_end] = baseline_x + rng.normal(
+                0.0, tight_scale, size=(tight_count, len(bounds))
+            )
+        if medium_end > tight_end:
+            init_population[tight_end:medium_end] = baseline_x + rng.normal(
+                0.0,
+                medium_scale,
+                size=(medium_end - tight_end, len(bounds)),
             )
         init_population = np.clip(init_population, lower, upper)
         init_population[0] = baseline_x
@@ -753,14 +1207,30 @@ def optimize(
         },
     )
     local_x = local_result.x
-    candidates = [selected.x, local_x, baseline_x]
+    candidates = [
+        selected.x,
+        local_x,
+        baseline_x,
+        fallback_x,
+        *[vector for _, vector in start_candidates],
+    ]
     scores = [float(local_objective(value)) for value in candidates]
     best_x = candidates[int(np.argmin(scores))]
     diagnostics = {
         "random_seeds": settings["random_seeds"],
         "selected_global_seed": selected_seed,
-        "initial_population_rule": "85% tight warm-start neighborhood, 10% medium neighborhood, 5% global random",
+        "warm_start_preselection": {
+            "candidates": [
+                {"name": name, "objective": score}
+                for score, name, _ in start_scores
+            ],
+            "selected": baseline_name,
+            "selected_objective": baseline_score,
+        },
+        "initial_population_rule": "verified warm starts, then 40% tight perturbations, 35% medium perturbations and the remainder global random",
+        "paper_decomposition": paper_diagnostics,
         "baseline_objective": float(local_objective(baseline_x)),
+        "fallback_geometric_objective": float(local_objective(fallback_x)),
         "global_runs": [
             {
                 "seed": seed,
@@ -936,6 +1406,56 @@ def write_outputs(output_dir: Path, payload: dict) -> None:
                     bomb["primary_target_id"],
                 ]
             )
+
+    paper = payload["optimization_diagnostics"].get("paper_decomposition")
+    if paper:
+        records = paper["pair_records"]
+        lookup = {
+            (record["uav_id"], record["missile_id"]): record
+            for record in records
+        }
+        with (output_dir / "tij_matrix.csv").open(
+            "w", newline="", encoding="utf-8-sig"
+        ) as handle:
+            writer = csv.writer(handle)
+            writer.writerow(["uav_id", *[f"T_{missile_id}_s" for missile_id in MISSILE_IDS]])
+            for uav_id in UAV_IDS:
+                writer.writerow(
+                    [
+                        uav_id,
+                        *[
+                            lookup[(uav_id, missile_id)]["T_ij_s"]
+                            for missile_id in MISSILE_IDS
+                        ],
+                    ]
+                )
+        with (output_dir / "assignment_summary.csv").open(
+            "w", newline="", encoding="utf-8-sig"
+        ) as handle:
+            writer = csv.writer(handle)
+            writer.writerow(
+                [
+                    "selection_rule",
+                    *UAV_IDS,
+                    "proxy_sum_T_ij_s",
+                    "strict_joint_duration_s",
+                    "strict_joint_objective",
+                ]
+            )
+            for name, key in (
+                ("paper_proxy_best", "paper_proxy_best_assignment"),
+                ("strict_joint_best", "strict_joint_best_assignment"),
+            ):
+                record = paper[key]
+                writer.writerow(
+                    [
+                        name,
+                        *[record["mapping"][uav_id] for uav_id in UAV_IDS],
+                        record["proxy_sum_T_ij_s"],
+                        record["strict_joint_duration_s"],
+                        record["strict_joint_objective"],
+                    ]
+                )
 
 
 def main() -> None:
