@@ -52,13 +52,17 @@
 {\Large\heiti\bfseries 摘\quad 要}
 \end{center}
 
-本文研究多架无人机投放烟幕干扰弹对来袭导弹实施视线遮蔽的策略优化问题。针对真目标为半径 $7\,\mathrm{m}$、高 $10\,\mathrm{m}$ 的圆柱体，建立导弹、无人机、烟幕弹和烟雾云团的统一三维运动模型。把导弹视为点观察者，将“完整遮蔽”定义为：导弹到真目标圆柱任一点的视线，在到达目标前至少与一团有效烟雾相交。计算中对圆柱表面离散采样，并利用线段与球体的解析相交条件判断遮蔽状态；对有效区间端点采用二分法精修。
+本文研究多架无人机投放烟幕干扰弹对来袭导弹实施视线遮蔽的策略优化问题。针对真目标为半径 $7\,\mathrm{m}$、高 $10\,\mathrm{m}$ 的圆柱体，建立导弹、无人机、烟幕弹和烟雾云团的统一三维运动模型。把导弹视为点观察者，将"完整遮蔽"定义为：导弹到真目标圆柱任一点的视线，在到达目标前至少与一团有效烟雾相交。计算中对圆柱表面离散采样，并利用\textbf{线段与球体的解析相交条件}判断遮蔽状态；对有效区间端点采用\textbf{二分法}精修。
 
-针对问题一，在给定航向、速度和投放时序下进行确定性复算，得到完整遮蔽区间为 $[8.056445,9.389248]$ s，有效时长为 $1.332802$ s。针对问题二，建立航向、速度、投放时刻和引信延迟的四变量非光滑优化模型，采用多种子差分进化和局部边界精修，得到当前搜索精度下的最优已知策略：航向 $176.641086^\circ$、速度 $70\,\mathrm{m/s}$、立即投放、引信延迟 $2.496799$ s，有效时长为 $4.542880$ s。
+\textbf{针对问题一}，在给定航向、速度和投放时序下进行\textbf{确定性复算}，得到完整遮蔽区间为 $[8.056445,9.389248]$~s，\textbf{有效时长为 $1.332802$~s}。
 
-针对问题三，采用增量编码保证同机相邻投放间隔不小于 $1$ s，并对三团烟雾逐目标视线取逻辑“或”。当前保存可行方案的联合遮蔽时长为 $6.580662$ s，其中前两枚弹形成接力，第三枚弹独立贡献为 $0$。针对问题四，先以单机策略构造热启动，再进行十二维联合差分进化和两级局部精修，得到三个互不重叠的遮蔽区间，总时长为 $11.362870$ s。
+\textbf{针对问题二}，建立航向、速度、投放时刻和引信延迟的\textbf{四变量非光滑优化模型}，采用\textbf{多种子差分进化和局部边界精修}，得到当前搜索精度下的最优已知策略：航向 $176.641086^\circ$、速度 $70\,\mathrm{m/s}$、立即投放、引信延迟 $2.496799$~s，\textbf{有效时长为 $4.542880$~s}。
 
-针对问题五，重点澄清多导弹口径：只有在同一时刻 $M_1,M_2,M_3$ 均无法完整观测真目标时才计时，因此最终指标是三枚导弹完整遮蔽时间集合的交集长度，而不是各导弹时长或各烟幕弹时长的简单相加。本文采用“15 个单机--单导弹子问题、150 个任务分配、严格联合重评分、30 维时序同步”的分层算法，得到当前预算下的严格可行解 $3.743312$ s，公共区间为 $[15.051012,18.794325]$ s。四档时空网格复算结果之差约为 $10^{-10}$ s，所有运动学和投放约束均通过检查。
+\textbf{针对问题三}，采用\textbf{增量编码}保证同机相邻投放间隔不小于 $1$~s，并对三团烟雾逐目标视线取逻辑"或"。当前保存可行方案的\textbf{联合遮蔽时长为 $6.580662$~s}，其中前两枚弹形成接力，第三枚弹独立贡献为 $0$。
+
+\textbf{针对问题四}，先以单机策略构造热启动，再进行\textbf{十二维联合差分进化和两级局部精修}，得到三个互不重叠的遮蔽区间，\textbf{总时长为 $11.362870$~s}。
+
+\textbf{针对问题五}，重点澄清多导弹口径：只有在同一时刻 $M_1,M_2,M_3$ 均无法完整观测真目标时才计时，因此最终指标是三枚导弹完整遮蔽时间集合的交集长度，而不是各导弹时长或各烟幕弹时长的简单相加。本文采用\textbf{"15个单机--单导弹子问题、150个任务分配、严格联合重评分、30维时序同步"的分层算法}，得到当前预算下的严格可行解 $3.743312$~s，公共区间为 $[15.051012,18.794325]$~s。四档时空网格复算结果之差约为 $10^{-10}$~s，所有运动学和投放约束均通过检查。
 
 \noindent\textbf{关键词：}烟幕干扰弹；完整视线遮蔽；差分进化；协同投放；时间集合交集
 
@@ -87,6 +91,16 @@ $M_3$ & 18000 & $-600$ & 1900 & $FY_3$ & 6000 & $-3000$ & 700 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+
+
+% Figure 1: Initial positions 3D diagram
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{figures/fig1_initial_positions.png}
+\caption{导弹、无人机初始位置三维示意图}
+\label{fig:initial-positions}
+\end{figure}
 
 \subsection{五个子问题}
 
@@ -188,6 +202,15 @@ d_\perp^2\le R_c^2,\qquad 0\le s_{\mathrm{in}}\le \|\boldsymbol Q-\boldsymbol P\
 \end{equation}
 同时成立时，烟雾才位于导弹与目标之间并有效阻断该条视线。
 
+
+% Figure 2: Line-of-Sight blocking principle
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figures/fig2_los_blocking.png}
+\caption{遮蔽原理图}
+\label{fig:los-blocking}
+\end{figure}
+
 \subsection{完整目标与多烟团联合遮蔽}
 
 将圆柱侧面、上下端面离散为检查点集合 $\mathcal Q_N$。定义 $Z_{j\ell,ik}(t)$ 表示烟团 $(i,k)$ 是否阻断导弹 $j$ 到检查点 $\boldsymbol Q_\ell$ 的视线，则导弹 $j$ 的完整遮蔽状态为
@@ -246,16 +269,23 @@ F_1=\mu\bigl(\{t\in[0,T_{m,1}]:B_1(t;\boldsymbol x_1^{(0)})=1\}\bigr),
 令 $\boldsymbol x_2=(\theta,v,t_d,\tau)$，其中 $\theta,v$ 分别为航向与速度，$t_d,\tau$ 分别为投放时刻与引信延迟。严格优化模型为
 \begin{equation}
 \begin{aligned}
-\max_{\boldsymbol x_2}\quad &F_2(\boldsymbol x_2)
-=\mu\bigl(\{t\in[0,T_{m,1}]:B_1(t;\boldsymbol x_2)=1\}\bigr),\\
-\mathrm{s.t.}\quad
-&0\le\theta<360^\circ,\qquad 70\le v\le140,\\
-&t_d\ge0,\qquad \tau\ge0,\\
-&z_b(\boldsymbol x_2)\ge0,\qquad t_b=t_d+\tau\le T_{m,1}.
+&\max_{\boldsymbol x_2} F_2(\boldsymbol x_2)
+=\mu\bigl(\{t\in[0,T_{m,1}]:B_1(t;\boldsymbol x_2)=1\}\bigr), \\[6pt]
+&\mathrm{s.t.}\; \left\{\begin{array}{l}
+0\le\theta<360^\circ,\quad 70\le v\le140, \\
+t_d\ge0,\quad \tau\ge0, \\
+z_b(\boldsymbol x_2)\ge0,\quad t_b=t_d+\tau\le T_{m,1}.
+\end{array}\right.
 \end{aligned}
 \label{eq:q2-model}
 \end{equation}
 由于目标由离散几何状态和区间切换构成，不连续且不可导，采用差分进化进行全局搜索\cite{storn1997}。随机种子取 2025、2026、2027，随后以更密目标网格进行局部和边界精修。最终解位于速度下界和投放时刻下界，因此再固定 $v=70$、$t_d=0$，对航向和引信延迟作二维高精度搜索。
+
+\subsection{解法分析}
+
+\textbf{算法选择依据：}目标函数 $F_2(\boldsymbol x_2)$ 由离散几何状态和区间切换构成，不连续且不可导，传统梯度方法无法直接应用。差分进化算法\cite{storn1997}作为一种群体智能优化方法，具有以下优势：(1) 不依赖梯度信息；(2) 对非光滑、多模态目标函数具有较强的全局搜索能力；(3) 参数设置简单，鲁棒性强。
+
+\textbf{搜索策略：}采用三种子（2025、2026、2027）并行搜索，避免单一随机序列的偶然性。首先在全参数空间进行粗粒度搜索，随后以更密目标网格进行局部精修。最终发现最优解位于速度下界（$v=70$~m/s）和投放时刻下界（$t_d=0$~s），因此固定这两个变量，对航向 $\theta$ 和引信延迟 $\tau$ 进行二维高精度网格搜索，得到最终结果。
 
 \subsection{结果}
 
@@ -292,18 +322,27 @@ t_{d,3}=t_{d,2}+1+\delta_3,\qquad \delta_2,\delta_3\ge0,
 自动满足相邻投放至少间隔 $1$ s。令 $B_1^{(3)}(t;\boldsymbol x_3)$ 表示三团烟雾联合后对 $M_1$ 的完整遮蔽状态，则优化模型为
 \begin{equation}
 \begin{aligned}
-\max_{\boldsymbol x_3}\quad &F_3(\boldsymbol x_3)
-=\mu\bigl(\{t\in[0,T_{m,1}]:B_1^{(3)}(t;\boldsymbol x_3)=1\}\bigr),\\
-\mathrm{s.t.}\quad
-&0\le\theta<360^\circ,\quad 70\le v\le140,\quad t_{d,1}\ge0,\\
-&\delta_2,\delta_3,\tau_1,\tau_2,\tau_3\ge0,\\
-&z_{b,k}(\boldsymbol x_3)\ge0,\quad t_{b,k}(\boldsymbol x_3)\le T_{m,1},\quad k=1,2,3.
+&\max_{\boldsymbol x_3} F_3(\boldsymbol x_3)
+=\mu\bigl(\{t\in[0,T_{m,1}]:B_1^{(3)}(t;\boldsymbol x_3)=1\}\bigr), \\[6pt]
+&\mathrm{s.t.}\; \left\{\begin{array}{l}
+0\le\theta<360^\circ,\quad 70\le v\le140,\quad t_{d,1}\ge0, \\
+\delta_2,\delta_3,\tau_1,\tau_2,\tau_3\ge0, \\
+z_{b,k}(\boldsymbol x_3)\ge0,\quad t_{b,k}(\boldsymbol x_3)\le T_{m,1},\quad k=1,2,3.
+\end{array}\right.
 \end{aligned}
 \label{eq:q3-model}
 \end{equation}
 多团烟雾在每条目标视线上按式~\eqref{eq:single-missile-bool}联合判断，因此 $F_3$ 不重复累计重叠区间，也不要求任意单枚烟幕弹独立遮住整个圆柱。
 
-\subsection{当前可行方案}
+\subsection{解法分析}
+
+\textbf{约束处理策略：}三枚弹共享同一无人机的航向和速度，且相邻投放间隔不小于 $1$~s。采用\textbf{增量编码}方式，将投放时刻表示为 $t_{d,k}=t_{d,1}+\sum_{i=2}^{k}(1+\delta_i)$，其中 $\delta_i\ge0$ 为额外间隔。这种编码自动满足时间顺序约束，将约束优化转化为无约束优化。
+
+\textbf{联合遮蔽机制：}三团烟雾在每条目标视线上取逻辑"或"，即只要至少一团烟雾阻断某条视线即可。因此 $F_3$ 不重复累计重叠区间，也不要求任意单枚烟幕弹独立遮住整个圆柱。这种"接力"机制使得多枚弹可以分别遮挡目标的不同部分。
+
+\textbf{求解过程：}以问题二的最优策略为初始点，扩展至八维参数空间进行差分进化搜索。搜索过程中发现前两枚弹可形成有效的"接力"遮蔽，第三枚弹由于时间窗口限制未能产生额外贡献。
+
+\subsection{结果}
 
 \begin{table}[H]
 \centering
@@ -339,15 +378,24 @@ t_{d,3}=t_{d,2}+1+\delta_3,\qquad \delta_2,\delta_3\ge0,
 三机协同的严格模型为
 \begin{equation}
 \begin{aligned}
-\max_{\boldsymbol x_4}\quad &F_4(\boldsymbol x_4)
-=\mu\bigl(\{t\in[0,T_{m,1}]:B_1^{(4)}(t;\boldsymbol x_4)=1\}\bigr),\\
-\mathrm{s.t.}\quad
-&0\le\theta_i<360^\circ,\quad 70\le v_i\le140,\quad t_{d,i}\ge0,\quad \tau_i\ge0,\\
-&z_{b,i}(\boldsymbol x_4)\ge0,\quad t_{b,i}(\boldsymbol x_4)\le T_{m,1},\quad i=1,2,3.
+&\max_{\boldsymbol x_4} F_4(\boldsymbol x_4)
+=\mu\bigl(\{t\in[0,T_{m,1}]:B_1^{(4)}(t;\boldsymbol x_4)=1\}\bigr), \\[6pt]
+&\mathrm{s.t.}\; \left\{\begin{array}{l}
+0\le\theta_i<360^\circ,\quad 70\le v_i\le140,\quad t_{d,i}\ge0,\quad \tau_i\ge0, \\
+z_{b,i}(\boldsymbol x_4)\ge0,\quad t_{b,i}(\boldsymbol x_4)\le T_{m,1},\quad i=1,2,3.
+\end{array}\right.
 \end{aligned}
 \label{eq:q4-model}
 \end{equation}
 先分别求解单机单弹基线，再将问题二的高质量 $FY_1$ 策略和其余单机结果作为联合种群热启动，使用多种子差分进化全局搜索，最后采用两级 Nelder--Mead 方法局部精修\cite{nelder1965}。
+
+\subsection{解法分析}
+
+\textbf{热启动策略：}三机协同问题涉及十二维参数空间（每机四个参数），直接随机搜索效率低下。采用\textbf{热启动}策略：先独立求解各单机单弹问题，将问题二的高质量 $FY_1$ 策略与其余单机结果组合，作为联合种群的初始候选。这种方法将搜索起点从随机点提升到已知高质量区域，显著加速收敛。
+
+\textbf{联合优化方法：}使用多种子差分进化在十二维空间进行全局搜索，随后采用\textbf{两级 Nelder--Mead 方法}\cite{nelder1965}进行局部精修。第一级在全参数空间进行单纯形搜索，探索邻域结构；第二级固定航向和速度，仅对投放时刻和引信延迟进行精细调优，提高数值精度。
+
+\textbf{空间接力机制：}三架无人机从不同空间位置出发，形成的烟雾云团覆盖目标的不同区域。搜索发现最优策略中三个遮蔽区间互不重叠，表明三机形成了有效的“空间接力”，而非简单的重叠遮蔽。这种空间分布策略充分利用了多机协同的优势。
 
 \subsection{结果}
 
@@ -375,6 +423,7 @@ $FY_3$ & 100.104312 & 136.648216 & 17.783398 & 5.305092 & 23.088490 \\
 &\cup[26.638416,29.550310]\ \mathrm{s},
 \end{aligned}
 \end{equation}
+
 总时长为 $11.362870$ s。三个区间互不重叠，分别由三架无人机的烟团形成时间接力，因此此处并集长度恰好等于三个区间长度之和；这是一种由“不重叠”验证得到的特例，而不是普遍的简单相加规则。
 
 \section{问题五：五机多弹对三导弹的严格联合优化}
@@ -413,9 +462,11 @@ t_{b,ik}\le \min_j T_{m,j}.
 \item 枚举五架无人机到三枚导弹的全部 $150$ 个满射分配。令 $a_{ij}\in\{0,1\}$ 表示无人机 $i$ 暂时分配给导弹 $j$，其辅助排序模型为
 \begin{equation}
 \begin{aligned}
-\max_{a_{ij}}\quad &\sum_{i=1}^{5}\sum_{j=1}^{3}a_{ij}T_{ij},\\
-\mathrm{s.t.}\quad &\sum_{j=1}^{3}a_{ij}=1\quad(i=1,\ldots,5),\\
-&\sum_{i=1}^{5}a_{ij}\ge1\quad(j=1,2,3),\qquad a_{ij}\in\{0,1\}.
+&\max_{a_{ij}} \sum_{i=1}^{5}\sum_{j=1}^{3}a_{ij}T_{ij}, \\[6pt]
+&\mathrm{s.t.}\; \left\{\begin{array}{l}
+\sum_{j=1}^{3}a_{ij}=1\quad(i=1,\ldots,5), \\
+\sum_{i=1}^{5}a_{ij}\ge1\quad(j=1,2,3),\quad a_{ij}\in\{0,1\}.
+\end{array}\right.
 \end{aligned}
 \label{eq:q5-assignment-proxy}
 \end{equation}
